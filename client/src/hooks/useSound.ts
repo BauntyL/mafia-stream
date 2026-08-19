@@ -37,48 +37,115 @@ export function useSound() {
 }
 
 const MENU_TRACK = '/audio/smoke-and-velvet.mp3';
+const FADE_MS = 1600;
 
-/** Фоновая музыка только для меню. На страницах игры и OBS не вызывать. */
-export function useMenuMusic() {
-  const { musicVolume } = useSettings();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+let audio: HTMLAudioElement | null = null;
+let holders = new Set<string>();
+let fadeRaf = 0;
+let currentGain = 0;
+let targetGain = 0;
+let fadeFrom = 0;
+let fadeStartedAt = 0;
+let unlocked = false;
 
-  useEffect(() => {
-    const audio = new Audio(MENU_TRACK);
+function getAudio() {
+  if (!audio) {
+    audio = new Audio(MENU_TRACK);
     audio.loop = true;
     audio.preload = 'auto';
-    audio.volume = Math.max(0, Math.min(1, musicVolume));
-    audioRef.current = audio;
+    audio.volume = 0;
+  }
+  return audio;
+}
 
-    const tryPlay = () => {
-      if (!audioRef.current || audioRef.current.volume === 0) return;
-      audioRef.current.play().catch(() => {
-        /* браузер ждёт жест пользователя */
-      });
-    };
+function userVolume() {
+  return Math.max(0, Math.min(1, useSettings.getState().musicVolume));
+}
 
-    tryPlay();
-    const onGesture = () => tryPlay();
-    window.addEventListener('pointerdown', onGesture, { once: true });
-    window.addEventListener('keydown', onGesture, { once: true });
+function applyOutput() {
+  getAudio().volume = Math.max(0, Math.min(1, currentGain * userVolume()));
+}
 
-    return () => {
-      window.removeEventListener('pointerdown', onGesture);
-      window.removeEventListener('keydown', onGesture);
-      audio.pause();
-      audio.src = '';
-      audioRef.current = null;
-    };
-  }, []);
+function easeInOut(t: number) {
+  return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+}
 
+function fadeFrame(now: number) {
+  const t = Math.min(1, (now - fadeStartedAt) / FADE_MS);
+  currentGain = fadeFrom + (targetGain - fadeFrom) * easeInOut(t);
+  applyOutput();
+
+  if (t < 1) {
+    fadeRaf = requestAnimationFrame(fadeFrame);
+    return;
+  }
+
+  currentGain = targetGain;
+  applyOutput();
+  if (currentGain === 0) getAudio().pause();
+}
+
+function startFade(to: number) {
+  cancelAnimationFrame(fadeRaf);
+  fadeFrom = currentGain;
+  targetGain = to;
+  fadeStartedAt = performance.now();
+
+  if (to > 0 && userVolume() > 0) {
+    getAudio().play().catch(() => {});
+  }
+
+  fadeRaf = requestAnimationFrame(fadeFrame);
+}
+
+function tryUnlock() {
+  if (unlocked) return;
+  getAudio()
+    .play()
+    .then(() => {
+      unlocked = true;
+      if (currentGain === 0 && targetGain === 0) getAudio().pause();
+    })
+    .catch(() => {});
+}
+
+function bindUnlock() {
+  const onGesture = () => tryUnlock();
+  window.addEventListener('pointerdown', onGesture, { once: true });
+  window.addEventListener('keydown', onGesture, { once: true });
+}
+
+bindUnlock();
+useSettings.subscribe(() => {
+  applyOutput();
+  if (targetGain > 0 && userVolume() > 0 && getAudio().paused) {
+    getAudio().play().catch(() => {});
+  }
+  if (userVolume() === 0) getAudio().pause();
+});
+
+let fadeOutTimer = 0;
+
+function acquireMenuMusic(id: string) {
+  holders.add(id);
+  window.clearTimeout(fadeOutTimer);
+  tryUnlock();
+  startFade(1);
+}
+
+function releaseMenuMusic(id: string) {
+  holders.delete(id);
+  window.clearTimeout(fadeOutTimer);
+  fadeOutTimer = window.setTimeout(() => {
+    if (holders.size === 0) startFade(0);
+  }, 80);
+}
+
+/** Включает трек меню с плавным появлением. На размонтировании — плавное затухание. */
+export function useMenuMusic(id: string, enabled = true) {
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = Math.max(0, Math.min(1, musicVolume));
-    if (musicVolume === 0) {
-      audio.pause();
-    } else if (audio.paused) {
-      audio.play().catch(() => {});
-    }
-  }, [musicVolume]);
+    if (!enabled) return;
+    acquireMenuMusic(id);
+    return () => releaseMenuMusic(id);
+  }, [id, enabled]);
 }

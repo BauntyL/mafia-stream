@@ -15,7 +15,7 @@ interface SettingsState {
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
-      musicVolume: 0.35,
+      musicVolume: 0.1,
       sfxVolume: 0.5,
       animationsEnabled: true,
       roleHidden: false,
@@ -26,11 +26,11 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: 'mafia-settings',
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const state = persisted as SettingsState;
-        if (version < 2 && state.musicVolume === 0) {
-          return { ...state, musicVolume: 0.35 };
+        if (version < 3) {
+          return { ...state, musicVolume: 0.1 };
         }
         return state;
       },

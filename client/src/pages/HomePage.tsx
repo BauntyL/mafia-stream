@@ -15,7 +15,7 @@ export function HomePage() {
   const { nickname, setPlayer } = usePlayerStore();
   const { emit } = useSocket();
   const sound = useSound();
-  useMenuMusic();
+  useMenuMusic('home');
 
   const [joinCode, setJoinCode] = useState('');
   const [loading, setLoading] = useState<'create' | 'join' | null>(null);

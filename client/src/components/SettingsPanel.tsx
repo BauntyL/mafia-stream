@@ -1,5 +1,6 @@
 import { useSettings } from '../store/settings';
 import { Modal, Toggle } from './ui';
+import { useMenuMusic } from '../hooks/useSound';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -52,6 +53,8 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     setRoleHidden,
   } = useSettings();
 
+  useMenuMusic('settings', open);
+
   return (
     <Modal open={open} onClose={onClose} title="Настройки" subtitle="Звук и отображение">
       <div className="space-y-6">
@@ -60,7 +63,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           label="Музыка"
           value={musicVolume}
           onChange={setMusicVolume}
-          hint="Играет только в меню"
+          hint="Играет в меню и пока открыты настройки"
         />
 
         <div className="rule" />
