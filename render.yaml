@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: npm install && npm install --prefix client && npm install --prefix server && npm run build --prefix client
+    buildCommand: npm install && npm install --prefix client --include=dev && npm install --prefix server && npm run build --prefix client
     startCommand: npm start --prefix server
     healthCheckPath: /api/health
     envVars:
