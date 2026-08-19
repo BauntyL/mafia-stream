@@ -218,7 +218,7 @@ export function GamePage() {
             <span className="hidden font-display text-[19px] tracking-[0.2em] text-bone-50 sm:block">
               МАФИЯ
             </span>
-            <AuthorMark compact />
+            <AuthorMark variant="compact" />
           </div>
 
           <button

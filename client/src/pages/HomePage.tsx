@@ -72,8 +72,7 @@ export function HomePage() {
       <NicknameModal onConfirm={() => setReady(true)} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      <header className="relative z-10 flex items-center justify-between px-6 py-5">
-        <AuthorMark />
+      <header className="relative z-10 flex items-center justify-end px-6 py-5">
         <IconButton label="Настройки" onClick={() => setSettingsOpen(true)}>
           <IconGear size={18} />
         </IconButton>
@@ -84,19 +83,25 @@ export function HomePage() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
-          className="text-center"
+          className="w-full text-center"
         >
+          <AuthorMark variant="hero" />
           <h1
-            className="font-display text-[clamp(52px,12vw,86px)] leading-[0.95] tracking-title text-bone-50"
+            className="mt-6 font-display text-[clamp(52px,12vw,86px)] leading-[0.95] tracking-title text-bone-50"
             style={{ textShadow: '0 8px 60px rgba(184,50,61,0.28)' }}
           >
             МАФИЯ
           </h1>
           <Ornament className="mx-auto mt-5 h-3 w-[190px] text-blood-400" />
-          <p className="mt-5 text-[15px] leading-relaxed text-bone-600">
-            Классическая игра для стрима: камеры, ведущий
-            <br className="hidden sm:block" /> и красивый экран для зрителей.
-          </p>
+          <div className="relative mt-5">
+            <p className="text-[15px] leading-relaxed text-bone-600">
+              Классическая игра для стрима: камеры, ведущий
+              <br className="hidden sm:block" /> и красивый экран для зрителей.
+            </p>
+            <div className="mt-3 flex justify-end sm:absolute sm:right-0 sm:top-full sm:mt-2">
+              <AuthorMark variant="signature" />
+            </div>
+          </div>
         </motion.div>
 
         {ready && (
