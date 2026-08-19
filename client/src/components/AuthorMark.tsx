@@ -29,7 +29,13 @@ export function AuthorMark({ variant = 'signature' }: AuthorMarkProps) {
       type="button"
       onClick={openTwitch}
       aria-label="Baunty на Twitch"
-      className={`group text-left ${variant === 'hero' ? '' : 'flex items-center gap-2.5'}`}
+      className={`group ${
+        variant === 'hero'
+          ? ''
+          : variant === 'signature'
+            ? 'text-center'
+            : 'flex items-center gap-2.5 text-left'
+      }`}
     >
       {variant !== 'signature' && (
         <span className="relative mx-auto block" style={{ width: size, height: size }}>
@@ -64,7 +70,7 @@ export function AuthorMark({ variant = 'signature' }: AuthorMarkProps) {
       {variant !== 'hero' && (
         <motion.span
           animate={pulse > 0 ? { opacity: [1, 0.45, 1] } : { opacity: 1 }}
-          className="leading-none"
+          className="leading-none text-center"
         >
           <span className="block font-display text-[11px] italic text-bone-700 group-hover:text-bone-500">
             by

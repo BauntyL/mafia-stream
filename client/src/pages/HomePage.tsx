@@ -87,21 +87,25 @@ export function HomePage() {
         >
           <AuthorMark variant="hero" />
           <h1
-            className="mt-6 font-display text-[clamp(52px,12vw,86px)] leading-[0.95] tracking-title text-bone-50"
-            style={{ textShadow: '0 8px 60px rgba(184,50,61,0.28)' }}
+            className="mt-6 flex justify-center font-display text-[clamp(52px,12vw,86px)] leading-[0.95] text-bone-50"
+            style={{ gap: '0.36em', textShadow: '0 8px 60px rgba(184,50,61,0.28)' }}
           >
-            МАФИЯ
+            <span>М</span>
+            <span>А</span>
+            <span>Ф</span>
+            <span>И</span>
+            <span className="relative pb-9">
+              Я
+              <span className="absolute left-1/2 top-[1.02em] -translate-x-1/2">
+                <AuthorMark variant="signature" />
+              </span>
+            </span>
           </h1>
-          <Ornament className="mx-auto mt-5 h-3 w-[190px] text-blood-400" />
-          <div className="relative mt-5">
-            <p className="text-[15px] leading-relaxed text-bone-600">
-              Классическая игра для стрима: камеры, ведущий
-              <br className="hidden sm:block" /> и красивый экран для зрителей.
-            </p>
-            <div className="mt-3 flex justify-end sm:absolute sm:right-0 sm:top-full sm:mt-2">
-              <AuthorMark variant="signature" />
-            </div>
-          </div>
+          <Ornament className="mx-auto mt-8 h-3 w-[190px] text-blood-400" />
+          <p className="mt-5 text-[15px] leading-relaxed text-bone-600">
+            Классическая игра для стрима: камеры, ведущий
+            <br className="hidden sm:block" /> и красивый экран для зрителей.
+          </p>
         </motion.div>
 
         {ready && (
