@@ -6,6 +6,7 @@ import { RoleCard, RoleBadge } from '../components/RoleCard';
 import { CameraSetup } from '../components/CameraSetup';
 import { HostPanel } from '../components/HostPanel';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { AuthorMark } from '../components/AuthorMark';
 import { NightKillCutscene, useNightKillCutscene } from '../components/NightKillCutscene';
 import { Button, IconButton } from '../components/Button';
 import { Panel, Badge, CopyRow } from '../components/ui';
