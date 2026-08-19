@@ -6,6 +6,7 @@ import { RoleCard, RoleBadge } from '../components/RoleCard';
 import { CameraSetup } from '../components/CameraSetup';
 import { HostPanel } from '../components/HostPanel';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { AuthorMark } from '../components/AuthorMark';
 import { Button, IconButton } from '../components/Button';
 import { Panel, Badge, CopyRow } from '../components/ui';
 import {
@@ -217,6 +218,7 @@ export function GamePage() {
             <span className="hidden font-display text-[19px] tracking-[0.2em] text-bone-50 sm:block">
               МАФИЯ
             </span>
+            <AuthorMark compact />
           </div>
 
           <button

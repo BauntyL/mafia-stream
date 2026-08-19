@@ -5,6 +5,7 @@ import { NicknameModal } from '../components/NicknameModal';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Button, IconButton } from '../components/Button';
 import { Input } from '../components/ui';
+import { AuthorMark } from '../components/AuthorMark';
 import { IconGear, IconSpinner, Ornament } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
@@ -72,7 +73,7 @@ export function HomePage() {
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <header className="relative z-10 flex items-center justify-between px-6 py-5">
-        <span className="eyebrow">Стрим-версия</span>
+        <AuthorMark />
         <IconButton label="Настройки" onClick={() => setSettingsOpen(true)}>
           <IconGear size={18} />
         </IconButton>
