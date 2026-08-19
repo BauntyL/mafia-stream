@@ -28,6 +28,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useSound } from '../hooks/useSound';
 import type { Role } from '../types';
 import { ROLE_LABELS } from '../types';
+import { avatarUrl } from '../utils/avatar';
 
 function getHint(
   phase: string,
@@ -315,6 +316,12 @@ export function GamePage() {
                     .map((p) => (
                       <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                         <div className="flex min-w-0 items-center gap-3">
+                          <img
+                            src={avatarUrl(p.slot)}
+                            alt=""
+                            className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-bone-50/10"
+                            draggable={false}
+                          />
                           <span className="font-mono text-[11px] tnum text-bone-700">
                             {String(p.slot).padStart(2, '0')}
                           </span>

@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOverlaySocket } from '../hooks/useSocket';
-import type { Player } from '../types';
+import { avatarUrl } from '../utils/avatar';
 import { IconTrophy, Ornament } from '../components/Icons';
 
 const DEATH_TITLE: Record<string, string> = {
@@ -40,12 +40,11 @@ function Slot({ player }: { player: Player }) {
           title={player.nickname}
         />
       ) : (
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(45deg, rgba(244,241,234,0.028) 0 1px, transparent 1px 11px)',
-          }}
+        <img
+          src={avatarUrl(player.slot)}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          draggable={false}
         />
       )}
 

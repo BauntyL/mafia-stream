@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import type { Player, Phase, Role } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
-import { ROLE_EMBLEMS, IconCamera, IconMoon, IconSun, IconGavel, IconTrophy, IconUsers } from './Icons';
+import { avatarUrl } from '../utils/avatar';
 
 interface PlayerGridProps {
   players: Player[];
@@ -74,8 +74,16 @@ export function PlayerGrid({
             )}
 
             <div className="relative flex items-center justify-between gap-2">
-              <span className="font-mono text-[11px] tnum text-bone-700">
-                {String(player.slot).padStart(2, '0')}
+              <span className="flex items-center gap-2">
+                <img
+                  src={avatarUrl(player.slot)}
+                  alt=""
+                  className="h-7 w-7 rounded-full object-cover ring-1 ring-bone-50/10"
+                  draggable={false}
+                />
+                <span className="font-mono text-[11px] tnum text-bone-700">
+                  {String(player.slot).padStart(2, '0')}
+                </span>
               </span>
               <span className="flex items-center gap-1.5">
                 {player.hasCamera && player.alive && (
