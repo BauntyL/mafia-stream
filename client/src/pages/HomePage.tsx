@@ -8,13 +8,14 @@ import { Input } from '../components/ui';
 import { IconGear, IconSpinner, Ornament } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
-import { useSound } from '../hooks/useSound';
+import { useSound, useMenuMusic } from '../hooks/useSound';
 
 export function HomePage() {
   const navigate = useNavigate();
   const { nickname, setPlayer } = usePlayerStore();
   const { emit } = useSocket();
   const sound = useSound();
+  useMenuMusic();
 
   const [joinCode, setJoinCode] = useState('');
   const [loading, setLoading] = useState<'create' | 'join' | null>(null);

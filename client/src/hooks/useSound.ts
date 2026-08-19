@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSettings } from '../store/settings';
 
 export function useSound() {
@@ -36,7 +36,49 @@ export function useSound() {
   };
 }
 
-/** Фоновая музыка появится вместе с аудиофайлами — пока звук не воспроизводится. */
-export function useBackgroundMusic(_enabled: boolean) {
-  /* no-op */
+const MENU_TRACK = '/audio/smoke-and-velvet.mp3';
+
+/** Фоновая музыка только для меню. На страницах игры и OBS не вызывать. */
+export function useMenuMusic() {
+  const { musicVolume } = useSettings();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio(MENU_TRACK);
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = Math.max(0, Math.min(1, musicVolume));
+    audioRef.current = audio;
+
+    const tryPlay = () => {
+      if (!audioRef.current || audioRef.current.volume === 0) return;
+      audioRef.current.play().catch(() => {
+        /* браузер ждёт жест пользователя */
+      });
+    };
+
+    tryPlay();
+    const onGesture = () => tryPlay();
+    window.addEventListener('pointerdown', onGesture, { once: true });
+    window.addEventListener('keydown', onGesture, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', onGesture);
+      window.removeEventListener('keydown', onGesture);
+      audio.pause();
+      audio.src = '';
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = Math.max(0, Math.min(1, musicVolume));
+    if (musicVolume === 0) {
+      audio.pause();
+    } else if (audio.paused) {
+      audio.play().catch(() => {});
+    }
+  }, [musicVolume]);
 }

@@ -60,8 +60,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           label="Музыка"
           value={musicVolume}
           onChange={setMusicVolume}
-          disabled
-          hint="Появится в следующем обновлении"
+          hint="Играет только в меню"
         />
 
         <div className="rule" />
