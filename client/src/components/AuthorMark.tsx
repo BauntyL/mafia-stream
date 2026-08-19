@@ -70,17 +70,23 @@ export function AuthorMark({ variant = 'signature' }: AuthorMarkProps) {
       {variant !== 'hero' && (
         <motion.span
           animate={pulse > 0 ? { opacity: [1, 0.45, 1] } : { opacity: 1 }}
-          className="leading-none text-center"
+          className={variant === 'signature' ? 'whitespace-nowrap leading-none' : 'leading-none'}
         >
-          <span className="block font-display text-[11px] italic text-bone-700 group-hover:text-bone-500">
-            by
-          </span>
-          <span
-            className={`block font-display tracking-[0.04em] text-bone-200 group-hover:text-brass-300
-              ${variant === 'compact' ? 'text-[14px]' : 'text-[16px]'}`}
-          >
-            Baunty
-          </span>
+          {variant === 'signature' ? (
+            <span className="font-display text-[15px] italic tracking-[0.02em] text-bone-400 group-hover:text-brass-300">
+              <span className="text-bone-700 group-hover:text-bone-500">by </span>
+              Baunty
+            </span>
+          ) : (
+            <>
+              <span className="block font-display text-[11px] italic text-bone-700 group-hover:text-bone-500">
+                by
+              </span>
+              <span className="block font-display text-[14px] tracking-[0.04em] text-bone-200 group-hover:text-brass-300">
+                Baunty
+              </span>
+            </>
+          )}
         </motion.span>
       )}
     </button>

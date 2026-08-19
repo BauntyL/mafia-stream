@@ -94,14 +94,14 @@ export function HomePage() {
             <span>А</span>
             <span>Ф</span>
             <span>И</span>
-            <span className="relative pb-9">
+            <span className="relative">
               Я
-              <span className="absolute left-1/2 top-[1.02em] -translate-x-1/2">
+              <span className="absolute left-[78%] top-[0.58em] whitespace-nowrap">
                 <AuthorMark variant="signature" />
               </span>
             </span>
           </h1>
-          <Ornament className="mx-auto mt-8 h-3 w-[190px] text-blood-400" />
+          <Ornament className="mx-auto mt-5 h-3 w-[190px] text-blood-400" />
           <p className="mt-5 text-[15px] leading-relaxed text-bone-600">
             Классическая игра для стрима: камеры, ведущий
             <br className="hidden sm:block" /> и красивый экран для зрителей.
