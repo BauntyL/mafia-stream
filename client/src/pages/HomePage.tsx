@@ -5,35 +5,10 @@ import { NicknameModal } from '../components/NicknameModal';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Button, IconButton } from '../components/Button';
 import { Input } from '../components/ui';
-import {
-  IconGear,
-  IconCamera,
-  IconMic,
-  IconMonitor,
-  IconSpinner,
-  Ornament,
-} from '../components/Icons';
+import { IconGear, IconSpinner, Ornament } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
 import { useSound } from '../hooks/useSound';
-
-const FEATURES = [
-  {
-    Icon: IconCamera,
-    title: 'Камеры без установки',
-    text: 'Игроки включают вебку прямо в браузере через VDO.Ninja.',
-  },
-  {
-    Icon: IconMic,
-    title: 'Полный контроль',
-    text: 'Ведущий листает фазы, видит роли и управляет столом.',
-  },
-  {
-    Icon: IconMonitor,
-    title: 'Готовый экран для OBS',
-    text: 'Отдельная ссылка с сеткой камер и карточками выбывших.',
-  },
-];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -183,21 +158,6 @@ export function HomePage() {
             </div>
           </motion.div>
         )}
-
-        <motion.ul
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          className="mt-14 grid w-full gap-px overflow-hidden rounded-[10px] border border-bone-50/[0.08] bg-bone-50/[0.06] sm:grid-cols-3"
-        >
-          {FEATURES.map(({ Icon, title, text }) => (
-            <li key={title} className="bg-ink-1000 px-5 py-6">
-              <Icon size={19} className="text-bone-600" strokeWidth={1.3} />
-              <h3 className="mt-3.5 text-[13px] font-semibold text-bone-200">{title}</h3>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-bone-700">{text}</p>
-            </li>
-          ))}
-        </motion.ul>
       </main>
     </div>
   );
