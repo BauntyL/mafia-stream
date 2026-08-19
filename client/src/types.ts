@@ -21,8 +21,6 @@ export interface Player {
   ready: boolean;
   roleSeen: boolean;
   hasCamera: boolean;
-  cameraStreamId: string | null;
-  cameraViewUrl: string | null;
   role?: Role;
   isTeammate?: boolean;
 }

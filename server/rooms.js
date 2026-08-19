@@ -57,8 +57,7 @@ function createPlayer(nickname, socketId, isCreator = false) {
     lastChatDay: null,
     isHost: false,
     slot: 0,
-    cameraStreamId: null,
-    cameraViewUrl: null,
+    hasCamera: false,
     role: null,
     alive: true,
     deathReason: null,
@@ -235,11 +234,10 @@ export function voteForHost(room, voterId, targetId) {
   return false;
 }
 
-export function setCamera(room, playerId, streamId, viewUrl) {
+export function setCamera(room, playerId, enabled) {
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return false;
-  player.cameraStreamId = streamId || null;
-  player.cameraViewUrl = viewUrl || null;
+  player.hasCamera = !!enabled;
   return true;
 }
 
@@ -909,9 +907,7 @@ export function serializeRoom(room, viewerId = null, isOverlay = false) {
       connected: p.connected,
       ready: p.ready,
       roleSeen: p.roleSeen,
-      hasCamera: !!p.cameraViewUrl,
-      cameraStreamId: p.cameraStreamId,
-      cameraViewUrl: isOverlay || p.id === viewerId ? p.cameraViewUrl : null,
+      hasCamera: !!p.hasCamera,
     };
 
     const seesRole =
@@ -1025,6 +1021,7 @@ export function removePlayer(socketId) {
 
     player.connected = false;
     player.socketId = null;
+    player.hasCamera = false;
 
     if (room.phase === PHASES.LOBBY) {
       room.players = room.players.filter((p) => p.id !== player.id);

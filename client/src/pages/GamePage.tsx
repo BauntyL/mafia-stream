@@ -33,6 +33,8 @@ import {
 } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
+import { useCameraPublisher } from '../hooks/useCameraPublisher';
+import { stopCamera } from '../webrtc/session';
 import { useSound } from '../hooks/useSound';
 import type { Player, Role, RoomState } from '../types';
 import { ROLE_LABELS } from '../types';
@@ -205,6 +207,9 @@ export function GamePage() {
   const { nickname, playerId, roomCode, setPlayer } = usePlayerStore();
   const { room, emit, connected, socket } = useSocket();
   const sound = useSound();
+  useCameraPublisher(socket);
+
+  useEffect(() => () => stopCamera(), []);
 
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [roleFlipped, setRoleFlipped] = useState(false);
@@ -581,9 +586,7 @@ export function GamePage() {
               </Panel>
             )}
 
-            {inLobby && playerId && code && (
-              <CameraSetup roomCode={code} playerId={playerId} hasCamera={!!me?.hasCamera} />
-            )}
+            {inLobby && <CameraSetup hasCamera={!!me?.hasCamera} />}
 
             {room.phase === 'roleReveal' && !isHost && myRole && (
               <div className="flex flex-col items-center py-8">
@@ -766,6 +769,12 @@ export function GamePage() {
               />
             )}
 
+            {!inLobby && (
+              <Panel title="Камера">
+                <CameraSetup compact hasCamera={!!me?.hasCamera} />
+              </Panel>
+            )}
+
             {!isHost && myRole && !inLobby && (
               <Panel title="Ваша роль">
                 <RoleBadge role={myRole} />
@@ -813,7 +822,7 @@ export function GamePage() {
               <Panel title="Как начать">
                 <ol className="space-y-3 text-[13px] leading-relaxed text-bone-600">
                   {[
-                    'Включите камеру — или играйте без неё, вам дадут аватар',
+                    'Включите камеру ниже — или играйте без неё, вам дадут аватар',
                     'Нажмите «Я готов»',
                     'Ведущий раздаст роли и начнёт партию',
                   ].map((step, i) => (

@@ -1,8 +1,8 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && cd client && npm install && cd ../server && npm install && cd .. && npm run build"
+buildCommand = "npm install && npm install --prefix client --include=dev && npm install --prefix server && npm run build --prefix client"
 
 [deploy]
-startCommand = "NODE_ENV=production npm start"
+startCommand = "npm start --prefix server"
 healthcheckPath = "/api/health"
 restartPolicyType = "ON_FAILURE"

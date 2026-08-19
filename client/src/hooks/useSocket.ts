@@ -61,13 +61,17 @@ export function useOverlaySocket(code: string) {
     if (!socket.connected) socket.connect();
 
     const onOverlay = (data: RoomState) => setRoom(data);
+    const join = () => socket.emit('joinOverlay', { code });
+
     socket.on('roomUpdateOverlay', onOverlay);
-    socket.emit('joinOverlay', { code });
+    socket.on('connect', join);
+    join();
 
     return () => {
       socket.off('roomUpdateOverlay', onOverlay);
+      socket.off('connect', join);
     };
   }, [code]);
 
-  return { room };
+  return { room, socket: socketRef.current };
 }

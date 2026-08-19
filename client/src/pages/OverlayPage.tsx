@@ -1,8 +1,9 @@
+import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOverlaySocket } from '../hooks/useSocket';
+import { useCameraViewer } from '../hooks/useCameraViewer';
 import { avatarUrl } from '../utils/avatar';
-import { toCleanViewUrl } from '../utils/vdo';
 import type { Player, Role, RoomState } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
 import { IconTrophy, Ornament, ROLE_EMBLEMS } from '../components/Icons';
@@ -19,17 +20,44 @@ const DEATH_WHEN: Record<string, string> = {
   day: 'ДНЁМ',
 };
 
+function RemoteVideo({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream;
+    const play = () => el.play().catch(() => undefined);
+    play();
+    el.addEventListener('loadeddata', play);
+    return () => el.removeEventListener('loadeddata', play);
+  }, [stream]);
+
+  return (
+    <video
+      ref={ref}
+      className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+      autoPlay
+      muted
+      playsInline
+      disablePictureInPicture
+    />
+  );
+}
+
 function Slot({
   player,
   votes,
   speaking,
+  stream,
 }: {
   player: Player;
   votes: number;
   speaking: boolean;
+  stream: MediaStream | null;
 }) {
   const dead = !player.alive;
-  const showVideo = !dead && !!player.cameraViewUrl;
+  const showVideo = !dead && !!stream;
   const role = player.role as Role | undefined;
   const Emblem = role ? ROLE_EMBLEMS[role] : null;
 
@@ -49,7 +77,7 @@ function Slot({
             : 'inset 0 0 0 1px rgba(244,241,234,0.16), 0 14px 34px -18px rgba(0,0,0,1)',
       }}
     >
-      {/* Заглушка лежит под видео: если камера не подключилась, зритель видит портрет, а не логотип VDO */}
+      {/* Портрет под видео: если камера ещё не дошла, зритель видит заглушку */}
       <img
         src={avatarUrl(player.slot)}
         alt=""
@@ -57,17 +85,7 @@ function Slot({
         draggable={false}
       />
 
-      {showVideo && (
-        <iframe
-          src={toCleanViewUrl(player.cameraViewUrl!)}
-          className="pointer-events-none absolute inset-0 h-full w-full select-none border-0"
-          style={{ pointerEvents: 'none' }}
-          scrolling="no"
-          tabIndex={-1}
-          allow="autoplay"
-          title={player.nickname}
-        />
-      )}
+      {showVideo && stream && <RemoteVideo stream={stream} />}
 
       <AnimatePresence>
         {dead && (
@@ -190,12 +208,17 @@ function StatusBar({ room }: { room: RoomState }) {
 
 export function OverlayPage() {
   const { code } = useParams<{ code: string }>();
-  const { room } = useOverlaySocket(code || '');
+  const { room, socket } = useOverlaySocket(code || '');
   const nightKill = useNightKillCutscene(room);
 
   const players = (room?.players.filter((p) => !p.isHost || room.settings.showHostInOverlay) || [])
     .slice()
     .sort((a, b) => a.slot - b.slot);
+
+  const cameraIds = players
+    .filter((p) => p.hasCamera && p.alive && p.connected && !p.isBot)
+    .map((p) => p.id);
+  const streams = useCameraViewer(socket, cameraIds);
 
   const count = Math.max(players.length, 1);
   const cols = count <= 4 ? 2 : count <= 9 ? 3 : 4;
@@ -285,6 +308,7 @@ export function OverlayPage() {
                 player={player}
                 votes={room?.voteTally?.[player.id] || 0}
                 speaking={room?.speaking?.playerId === player.id}
+                stream={streams[player.id] || null}
               />
             ))}
           </div>

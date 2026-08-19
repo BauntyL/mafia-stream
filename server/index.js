@@ -151,6 +151,7 @@ io.on('connection', (socket) => {
   socket.on('joinOverlay', ({ code }) => {
     const key = String(code || '').toUpperCase();
     socket.join(`${key}_overlay`);
+    socket.data.overlayCode = key;
     const room = getRoom(key);
     if (room) socket.emit('roomUpdateOverlay', serializeRoom(room, null, true));
   });
@@ -204,11 +205,49 @@ io.on('connection', (socket) => {
     done(cb, room);
   });
 
-  socket.on('setCamera', ({ streamId, viewUrl }, cb) => {
+  socket.on('setCamera', ({ enabled }, cb) => {
     const { room } = ctx();
     if (!room) return done(cb);
-    setCamera(room, currentPlayerId, streamId, viewUrl);
+    setCamera(room, currentPlayerId, enabled);
     done(cb, room);
+  });
+
+  /* ── WebRTC: камеры игроков → экран OBS ────────────────── */
+
+  const roomOf = () => getRoom(currentRoom) || getRoom(socket.data.overlayCode);
+
+  socket.on('webrtcWatch', ({ playerId }) => {
+    const room = roomOf();
+    if (!room || !playerId) return;
+    const target = room.players.find((p) => p.id === playerId);
+    if (!target?.socketId || !target.hasCamera) return;
+    io.to(target.socketId).emit('webrtcWatch', { viewerId: socket.id });
+  });
+
+  socket.on('webrtcOffer', ({ viewerId, sdp }) => {
+    if (!viewerId || !sdp || !currentPlayerId) return;
+    io.to(viewerId).emit('webrtcOffer', { playerId: currentPlayerId, sdp });
+  });
+
+  socket.on('webrtcAnswer', ({ playerId, sdp }) => {
+    const room = roomOf();
+    if (!room || !playerId || !sdp) return;
+    const target = room.players.find((p) => p.id === playerId);
+    if (!target?.socketId) return;
+    io.to(target.socketId).emit('webrtcAnswer', { viewerId: socket.id, sdp });
+  });
+
+  socket.on('webrtcIce', ({ viewerId, playerId, candidate }) => {
+    if (!candidate) return;
+    if (viewerId) {
+      io.to(viewerId).emit('webrtcIce', { playerId: currentPlayerId, candidate });
+      return;
+    }
+    const room = roomOf();
+    if (!room || !playerId) return;
+    const target = room.players.find((p) => p.id === playerId);
+    if (!target?.socketId) return;
+    io.to(target.socketId).emit('webrtcIce', { viewerId: socket.id, candidate });
   });
 
   socket.on('updateSettings', ({ settings }, cb) => {
@@ -376,6 +415,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    const overlayCode = socket.data.overlayCode;
+    if (overlayCode) {
+      const overlayRoom = getRoom(overlayCode);
+      overlayRoom?.players.forEach((p) => {
+        if (p.socketId) io.to(p.socketId).emit('webrtcViewerLeft', { viewerId: socket.id });
+      });
+    }
     const room = removePlayer(socket.id);
     if (room) emitRoomUpdate(room);
   });
