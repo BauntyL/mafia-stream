@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import type { Player, Phase, Role } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
+import { ROLE_EMBLEMS, IconCamera, IconMoon, IconSun, IconGavel, IconTrophy, IconUsers } from './Icons';
 import { avatarUrl } from '../utils/avatar';
 
 interface PlayerGridProps {
