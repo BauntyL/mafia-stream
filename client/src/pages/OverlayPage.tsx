@@ -2,7 +2,9 @@ import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOverlaySocket } from '../hooks/useSocket';
 import { avatarUrl } from '../utils/avatar';
+import type { Player } from '../types';
 import { IconTrophy, Ornament } from '../components/Icons';
+import { NightKillCutscene, useNightKillCutscene } from '../components/NightKillCutscene';
 
 const DEATH_TITLE: Record<string, string> = {
   killed: 'УБИЙСТВО',
@@ -106,6 +108,7 @@ function Slot({ player }: { player: Player }) {
 export function OverlayPage() {
   const { code } = useParams<{ code: string }>();
   const { room } = useOverlaySocket(code || '');
+  const nightKill = useNightKillCutscene(room);
 
   const players = (room?.players.filter((p) => !p.isHost || room.settings.showHostInOverlay) || [])
     .slice()
@@ -255,6 +258,13 @@ export function OverlayPage() {
           </p>
         </div>
       )}
+
+      <NightKillCutscene
+        open={nightKill.open}
+        victim={nightKill.victim}
+        onDone={nightKill.close}
+        cinematic
+      />
     </div>
   );
 }

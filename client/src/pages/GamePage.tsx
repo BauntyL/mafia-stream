@@ -6,7 +6,7 @@ import { RoleCard, RoleBadge } from '../components/RoleCard';
 import { CameraSetup } from '../components/CameraSetup';
 import { HostPanel } from '../components/HostPanel';
 import { SettingsPanel } from '../components/SettingsPanel';
-import { AuthorMark } from '../components/AuthorMark';
+import { NightKillCutscene, useNightKillCutscene } from '../components/NightKillCutscene';
 import { Button, IconButton } from '../components/Button';
 import { Panel, Badge, CopyRow } from '../components/ui';
 import {
@@ -68,6 +68,7 @@ export function GamePage() {
   const [copiedOverlay, setCopiedOverlay] = useState(false);
   const [prevPhase, setPrevPhase] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const nightKill = useNightKillCutscene(room);
 
   const me = room?.players.find((p) => p.id === playerId);
   const isHost = me?.isHost || false;
@@ -209,6 +210,11 @@ export function GamePage() {
       />
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <NightKillCutscene
+        open={nightKill.open}
+        victim={nightKill.victim}
+        onDone={nightKill.close}
+      />
 
       <header className="sticky top-0 z-30 border-b border-bone-50/[0.08] bg-ink-1000/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4 px-5 py-3">
