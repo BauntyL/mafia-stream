@@ -37,11 +37,11 @@ export function CameraSetup({ roomCode, playerId, hasCamera }: CameraSetupProps)
   };
 
   const handleManual = async () => {
-    const parsed = parseVdoUrl(manualUrl);
     if (!manualUrl.includes('vdo.ninja')) {
       setError('Нужна ссылка с vdo.ninja');
       return;
     }
+    const parsed = parseVdoUrl(manualUrl);
     setError('');
     const finalId = parsed.streamId || streamId;
     const finalView = parsed.viewUrl.includes('view=')
@@ -49,6 +49,12 @@ export function CameraSetup({ roomCode, playerId, hasCamera }: CameraSetupProps)
       : buildVdoViewUrl(finalId, roomCode);
     setActive(true);
     await emit('setCamera', { streamId: finalId, viewUrl: finalView });
+  };
+
+  const handleDisable = async () => {
+    setActive(false);
+    setManualUrl('');
+    await emit('setCamera', { streamId: null, viewUrl: null });
   };
 
   return (
@@ -66,6 +72,7 @@ export function CameraSetup({ roomCode, playerId, hasCamera }: CameraSetupProps)
     >
       <p className="text-[13px] leading-relaxed text-bone-600">
         Видео идёт через VDO.Ninja — ставить ничего не нужно, только разрешите доступ к камере.
+        Без камеры тоже можно играть: на стриме вместо вас будет портрет.
       </p>
 
       <div className="mt-4 inline-flex rounded-[7px] border border-bone-50/10 bg-ink-1000/50 p-0.5">
@@ -145,6 +152,15 @@ export function CameraSetup({ roomCode, playerId, hasCamera }: CameraSetupProps)
       )}
 
       {error && <p className="mt-3 text-[13px] text-blood-300">{error}</p>}
+
+      {hasCamera && (
+        <button
+          onClick={handleDisable}
+          className="mt-3 text-[12.5px] text-bone-700 underline-offset-4 transition-colors hover:text-bone-400 hover:underline"
+        >
+          Играть без камеры
+        </button>
+      )}
 
       <AnimatePresence>
         {(active || hasCamera) && (

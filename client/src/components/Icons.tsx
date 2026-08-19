@@ -152,6 +152,62 @@ export const IconShield = (p: IconProps) => (
   </Svg>
 );
 
+export const IconSend = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20.5 3.5 3.8 10.2a.5.5 0 0 0 .04.94l6.6 1.9 1.9 6.6a.5.5 0 0 0 .94.04Z" />
+    <path d="M10.6 13.4 20.5 3.5" />
+  </Svg>
+);
+
+export const IconScroll = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6" />
+    <path d="M4 6a2 2 0 0 1 4 0v2H4Z" />
+    <path d="M10 9h7M10 13h7M10 17h4" />
+  </Svg>
+);
+
+export const IconSkull = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3c-4.4 0-7.5 3-7.5 7 0 2.4 1.1 3.9 2.3 4.9.5.4.7.9.7 1.5v1.1a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5v-1.1c0-.6.2-1.1.7-1.5 1.2-1 2.3-2.5 2.3-4.9 0-4-3.1-7-7.5-7Z" />
+    <circle cx="9.3" cy="11" r="1.4" />
+    <circle cx="14.7" cy="11" r="1.4" />
+    <path d="M10.5 19v2M13.5 19v2" />
+  </Svg>
+);
+
+export const IconClock = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 1.8" />
+  </Svg>
+);
+
+export const IconBan = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M6 6l12 12" />
+  </Svg>
+);
+
+export const IconRobot = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4" y="8" width="16" height="11" rx="3" />
+    <path d="M12 4.5V8" />
+    <circle cx="12" cy="3.6" r="1.1" />
+    <circle cx="9" cy="13" r="1.2" />
+    <circle cx="15" cy="13" r="1.2" />
+    <path d="M9.5 16.4h5M1.8 12v3M22.2 12v3" />
+  </Svg>
+);
+
+export const IconExit = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+    <path d="M10 16l-4-4 4-4M6 12h9" />
+  </Svg>
+);
+
 export const IconSpinner = ({ size = 20, ...p }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" {...p}>
     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" opacity="0.2" />

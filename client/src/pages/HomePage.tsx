@@ -103,8 +103,8 @@ export function HomePage() {
           </h1>
           <Ornament className="mx-auto mt-5 h-3 w-[190px] text-blood-400" />
           <p className="mt-5 text-[15px] leading-relaxed text-bone-600">
-            Классическая игра для стрима: камеры, ведущий
-            <br className="hidden sm:block" /> и красивый экран для зрителей.
+            Классическая игра для стрима: сценарий для ведущего, камеры
+            <br className="hidden sm:block" /> и экран для зрителей. Можно играть и в чате, без вебок.
           </p>
         </motion.div>
 

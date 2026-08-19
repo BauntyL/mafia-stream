@@ -2,9 +2,12 @@ import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOverlaySocket } from '../hooks/useSocket';
 import { avatarUrl } from '../utils/avatar';
-import type { Player } from '../types';
-import { IconTrophy, Ornament } from '../components/Icons';
+import { toCleanViewUrl } from '../utils/vdo';
+import type { Player, Role, RoomState } from '../types';
+import { ROLE_LABELS, ROLE_COLORS } from '../types';
+import { IconTrophy, Ornament, ROLE_EMBLEMS } from '../components/Icons';
 import { NightKillCutscene, useNightKillCutscene } from '../components/NightKillCutscene';
+import { useCountdown, formatTime } from '../components/Timer';
 
 const DEATH_TITLE: Record<string, string> = {
   killed: 'УБИЙСТВО',
@@ -16,9 +19,19 @@ const DEATH_WHEN: Record<string, string> = {
   day: 'ДНЁМ',
 };
 
-function Slot({ player }: { player: Player }) {
+function Slot({
+  player,
+  votes,
+  speaking,
+}: {
+  player: Player;
+  votes: number;
+  speaking: boolean;
+}) {
   const dead = !player.alive;
-  const showVideo = !dead && player.cameraViewUrl;
+  const showVideo = !dead && !!player.cameraViewUrl;
+  const role = player.role as Role | undefined;
+  const Emblem = role ? ROLE_EMBLEMS[role] : null;
 
   return (
     <motion.div
@@ -31,33 +44,38 @@ function Slot({ player }: { player: Player }) {
         background: '#0e0e13',
         boxShadow: dead
           ? 'inset 0 0 0 1px rgba(184,50,61,0.28), 0 14px 34px -18px rgba(0,0,0,1)'
-          : 'inset 0 0 0 1px rgba(244,241,234,0.16), 0 14px 34px -18px rgba(0,0,0,1)',
+          : speaking
+            ? 'inset 0 0 0 2px rgba(207,174,82,0.75), 0 14px 34px -18px rgba(0,0,0,1)'
+            : 'inset 0 0 0 1px rgba(244,241,234,0.16), 0 14px 34px -18px rgba(0,0,0,1)',
       }}
     >
-      {showVideo ? (
+      {/* Заглушка лежит под видео: если камера не подключилась, зритель видит портрет, а не логотип VDO */}
+      <img
+        src={avatarUrl(player.slot)}
+        alt=""
+        className={`absolute inset-0 h-full w-full object-cover ${dead ? 'grayscale' : ''}`}
+        draggable={false}
+      />
+
+      {showVideo && (
         <iframe
-          src={player.cameraViewUrl!}
-          className="absolute inset-0 h-full w-full border-0"
+          src={toCleanViewUrl(player.cameraViewUrl!)}
+          className="pointer-events-none absolute inset-0 h-full w-full select-none border-0"
+          style={{ pointerEvents: 'none' }}
+          scrolling="no"
+          tabIndex={-1}
           allow="autoplay"
           title={player.nickname}
         />
-      ) : (
-        <img
-          src={avatarUrl(player.slot)}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-          draggable={false}
-        />
       )}
 
-      {/* Затемнение выбывшего */}
       <AnimatePresence>
         {dead && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6 }}
-            className="absolute inset-0 flex flex-col items-center justify-center"
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center"
             style={{ background: 'rgba(7,7,10,0.86)' }}
           >
             <motion.div
@@ -73,13 +91,40 @@ function Slot({ player }: { player: Player }) {
               <p className="mt-2.5 text-[clamp(8px,0.85vw,11px)] tracking-[0.34em] text-blood-400/90">
                 {DEATH_WHEN[player.deathPhase || 'night']}
               </p>
+              {role && Emblem && (
+                <p
+                  className="mt-3 flex items-center justify-center gap-1.5 text-[clamp(8px,0.8vw,11px)] uppercase tracking-[0.2em]"
+                  style={{ color: ROLE_COLORS[role] }}
+                >
+                  <Emblem size={12} strokeWidth={1.5} />
+                  {ROLE_LABELS[role]}
+                </p>
+              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Табличка с именем */}
-      <div className="absolute inset-x-0 bottom-0">
+      {/* Голоса на дневном голосовании */}
+      <AnimatePresence>
+        {votes > 0 && !dead && (
+          <motion.span
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            className="absolute right-2 top-2 z-10 flex h-[clamp(20px,2vw,30px)] min-w-[clamp(20px,2vw,30px)]
+              items-center justify-center rounded-full px-1.5 font-mono text-[clamp(10px,1vw,14px)] tnum text-bone-50"
+            style={{
+              background: 'rgba(184,50,61,0.9)',
+              boxShadow: '0 6px 18px -6px rgba(0,0,0,0.9)',
+            }}
+          >
+            {votes}
+          </motion.span>
+        )}
+      </AnimatePresence>
+
+      <div className="absolute inset-x-0 bottom-0 z-10">
         <div
           className="flex items-baseline gap-2 px-3 pb-2 pt-6"
           style={{
@@ -95,13 +140,51 @@ function Slot({ player }: { player: Player }) {
           >
             {player.nickname}
           </span>
+          {speaking && !dead && (
+            <span className="ml-auto text-[clamp(8px,0.75vw,10px)] uppercase tracking-[0.2em] text-brass-300">
+              говорит
+            </span>
+          )}
         </div>
       </div>
 
       {!player.connected && !dead && (
-        <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brass-400 shadow-lg" />
+        <span className="absolute right-2.5 top-2.5 z-10 h-1.5 w-1.5 rounded-full bg-brass-400 shadow-lg" />
       )}
     </motion.div>
+  );
+}
+
+function StatusBar({ room }: { room: RoomState }) {
+  const { left } = useCountdown(room.timer?.endsAt);
+  const last = room.log[room.log.length - 1];
+
+  return (
+    <div className="flex shrink-0 items-center justify-between gap-4 pt-[1.2vh]">
+      <span
+        className="truncate text-bone-600"
+        style={{ fontSize: 'clamp(9px,0.85vw,13px)', letterSpacing: '0.14em' }}
+      >
+        {last?.text || ''}
+      </span>
+
+      <span className="flex shrink-0 items-center gap-[1.4vw]">
+        <span
+          className="uppercase text-bone-700"
+          style={{ fontSize: 'clamp(8px,0.75vw,11px)', letterSpacing: '0.28em' }}
+        >
+          в живых <span className="tnum text-bone-200">{room.aliveCount}</span>
+        </span>
+        {room.timer && (
+          <span
+            className={`font-mono tnum ${left <= 10 ? 'text-blood-300' : 'text-bone-200'}`}
+            style={{ fontSize: 'clamp(12px,1.3vw,20px)' }}
+          >
+            {left > 0 ? formatTime(left) : '0:00'}
+          </span>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -114,7 +197,9 @@ export function OverlayPage() {
     .slice()
     .sort((a, b) => a.slot - b.slot);
 
-  const slots = Array.from({ length: 12 }, (_, i) => players[i] || null);
+  const count = Math.max(players.length, 1);
+  const cols = count <= 4 ? 2 : count <= 9 ? 3 : 4;
+  const rows = Math.ceil(count / cols);
 
   const phaseLabel =
     room?.phase === 'night'
@@ -122,7 +207,9 @@ export function OverlayPage() {
       : room?.phase === 'day'
         ? `День ${room.dayNumber}`
         : room?.phase === 'voting'
-          ? 'Голосование'
+          ? room.revoteRound > 0
+            ? 'Переголосовка'
+            : 'Голосование'
           : room?.phase === 'roleReveal'
             ? 'Раздача ролей'
             : '';
@@ -132,7 +219,6 @@ export function OverlayPage() {
       className="grain relative h-screen w-screen overflow-hidden"
       style={{ background: '#07070a' }}
     >
-      {/* Атмосфера, реагирующая на фазу */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -154,7 +240,6 @@ export function OverlayPage() {
       />
 
       <div className="relative flex h-full flex-col px-[2.2vw] py-[1.8vh]">
-        {/* Шапка */}
         <header className="flex shrink-0 flex-col items-center">
           <h1
             className="font-display leading-none text-bone-50"
@@ -185,36 +270,29 @@ export function OverlayPage() {
           </AnimatePresence>
         </header>
 
-        {/* Сетка камер */}
         <div className="flex min-h-0 flex-1 items-center justify-center pt-[1.6vh]">
           <div
-            className="grid h-full w-full grid-cols-4 grid-rows-3"
-            style={{ gap: 'clamp(6px, 0.7vw, 14px)' }}
+            className="grid h-full w-full"
+            style={{
+              gap: 'clamp(6px, 0.7vw, 14px)',
+              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+            }}
           >
-            {slots.map((player, i) =>
-              player ? (
-                <Slot key={player.id} player={player} />
-              ) : (
-                <div
-                  key={`empty-${i}`}
-                  className="flex items-center justify-center rounded-[6px]"
-                  style={{
-                    boxShadow: 'inset 0 0 0 1px rgba(244,241,234,0.055)',
-                    background:
-                      'repeating-linear-gradient(45deg, rgba(244,241,234,0.016) 0 1px, transparent 1px 11px)',
-                  }}
-                >
-                  <span className="font-mono text-[clamp(11px,1.1vw,16px)] tnum text-bone-50/[0.07]">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                </div>
-              ),
-            )}
+            {players.map((player) => (
+              <Slot
+                key={player.id}
+                player={player}
+                votes={room?.voteTally?.[player.id] || 0}
+                speaking={room?.speaking?.playerId === player.id}
+              />
+            ))}
           </div>
         </div>
+
+        {room && <StatusBar room={room} />}
       </div>
 
-      {/* Финал партии */}
       <AnimatePresence>
         {room?.phase === 'ended' && room.winner && (
           <motion.div
@@ -243,6 +321,32 @@ export function OverlayPage() {
                 {room.winner === 'city' ? 'ПОБЕДА ГОРОДА' : 'ПОБЕДА МАФИИ'}
               </h2>
               <Ornament className="mt-6 h-3 w-[220px] text-bone-600" />
+
+              <ul className="mt-8 grid grid-cols-2 gap-x-[3vw] gap-y-[1vh]">
+                {room.players
+                  .filter((p) => !p.isHost)
+                  .sort((a, b) => a.slot - b.slot)
+                  .map((p) => {
+                    const role = p.role as Role | undefined;
+                    return (
+                      <li
+                        key={p.id}
+                        className="flex items-center justify-between gap-4"
+                        style={{ fontSize: 'clamp(10px,1vw,15px)' }}
+                      >
+                        <span className="text-bone-400">
+                          <span className="mr-2 font-mono tnum text-bone-700">
+                            {String(p.slot).padStart(2, '0')}
+                          </span>
+                          {p.nickname}
+                        </span>
+                        {role && (
+                          <span style={{ color: ROLE_COLORS[role] }}>{ROLE_LABELS[role]}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
             </motion.div>
           </motion.div>
         )}

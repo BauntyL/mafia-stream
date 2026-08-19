@@ -47,8 +47,13 @@ export function generatePlayerId() {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Классическая пропорция: примерно каждый третий за столом — мафия (6–8 → 2, 9–11 → 3, 12 → 4). */
+export function getMafiaCountFor(playerCount) {
+  return Math.max(2, Math.round(playerCount * 0.3));
+}
+
 export function getRoleDistribution(playerCount, includeDoctor = true) {
-  const mafiaRegular = Math.max(1, Math.floor((playerCount - 4) / 2));
+  const mafiaRegular = getMafiaCountFor(playerCount) - 1;
   const roles = [];
   roles.push(ROLES.DON);
   for (let i = 0; i < mafiaRegular; i++) roles.push(ROLES.MAFIA);

@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerGrid, PhaseBanner } from '../components/PlayerGrid';
 import { RoleCard, RoleBadge } from '../components/RoleCard';
 import { CameraSetup } from '../components/CameraSetup';
 import { HostPanel } from '../components/HostPanel';
+import { HostScript } from '../components/HostScript';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { AuthorMark } from '../components/AuthorMark';
 import { NightKillCutscene, useNightKillCutscene } from '../components/NightKillCutscene';
+import { Chat } from '../components/Chat';
+import { GameLog, CheckHistory } from '../components/GameLog';
+import { RulesPanel } from '../components/RulesPanel';
+import { TimerBar } from '../components/Timer';
 import { Button, IconButton } from '../components/Button';
 import { Panel, Badge, CopyRow } from '../components/ui';
 import {
@@ -21,44 +26,184 @@ import {
   IconSearch,
   IconSpinner,
   IconTrophy,
-  IconPlay,
   IconMonitor,
+  IconMoon,
+  IconBan,
+  IconRobot,
 } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
 import { useSound } from '../hooks/useSound';
-import type { Role } from '../types';
+import type { Player, Role, RoomState } from '../types';
 import { ROLE_LABELS } from '../types';
 import { avatarUrl } from '../utils/avatar';
+import type { ScriptActionKey } from '../utils/script';
 
-function getHint(
-  phase: string,
-  nightSubPhase: string | null,
-  role: Role | undefined,
-  isHost: boolean,
-): string {
-  if (isHost) return 'Ведите игру: объявляйте фазы и следите за столом';
-  if (!role) return 'Ожидайте начала игры';
-  if (phase === 'roleReveal') return 'Откройте карту и запомните свою роль';
-  if (phase === 'night') {
-    if (nightSubPhase === 'mafia' && (role === 'mafia' || role === 'don'))
-      return 'Выберите жертву этой ночи';
-    if (nightSubPhase === 'don' && role === 'don') return 'Проверьте игрока — шериф ли он';
-    if (nightSubPhase === 'sheriff' && role === 'sheriff') return 'Проверьте игрока — мафия ли он';
-    if (nightSubPhase === 'doctor' && role === 'doctor') return 'Выберите, кого вылечить';
-    return 'Город спит. Дождитесь утра';
-  }
-  if (phase === 'day') return 'Обсуждайте и ищите мафию';
-  if (phase === 'voting') return 'Выберите, кого изгнать из города';
-  if (phase === 'ended') return 'Партия завершена';
-  return '';
+const CHECK_TOASTS: Record<string, string> = {
+  mafia: 'Этот игрок — мафия',
+  civilian: 'Этот игрок — мирный житель',
+  sheriff: 'Этот игрок — шериф',
+  not_sheriff: 'Этот игрок не шериф',
+};
+
+const ACTION_TITLES: Record<string, { title: string; hint: string; confirm: string }> = {
+  mafia: {
+    title: 'Выберите жертву',
+    hint: 'Договоритесь со своими в тайном чате. Подтвердить можно только один раз.',
+    confirm: 'Убить',
+  },
+  don: {
+    title: 'Кого проверяем на шерифа',
+    hint: 'Проверка одна за ночь и изменить её нельзя.',
+    confirm: 'Проверить',
+  },
+  sheriff: {
+    title: 'Кого проверяем',
+    hint: 'Проверка одна за ночь и изменить её нельзя.',
+    confirm: 'Проверить',
+  },
+  doctor: {
+    title: 'Кого лечим этой ночью',
+    hint: 'Себя можно вылечить один раз за игру, одного игрока — не две ночи подряд.',
+    confirm: 'Лечить',
+  },
+};
+
+function WaitingCard({ text, icon }: { text: string; icon?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-center gap-3 rounded-[9px] border border-bone-50/[0.08] bg-ink-1000/50 px-5 py-5">
+      {icon ?? <IconSpinner size={16} className="text-bone-700" />}
+      <span className="text-[14px] text-bone-600">{text}</span>
+    </div>
+  );
 }
+
+/* ── Панель действий игрока ─────────────────────────────────── */
+
+function PlayerActions({
+  room,
+  me,
+  selected,
+  onConfirm,
+  onSkip,
+}: {
+  room: RoomState;
+  me: Player;
+  selected: string | null;
+  onConfirm: () => void;
+  onSkip: () => void;
+}) {
+  const you = room.you;
+  if (!you || room.phase === 'ended') return null;
+
+  const nameOf = (id: string | null) =>
+    id ? room.players.find((p) => p.id === id)?.nickname || '' : '';
+
+  if (!me.alive) {
+    return (
+      <WaitingCard
+        text="Вы выбыли. Можно смотреть игру и общаться в комнате выбывших."
+        icon={<IconBan size={16} className="text-bone-700" />}
+      />
+    );
+  }
+
+  if (room.phase === 'night') {
+    if (you.actionLocked) {
+      return (
+        <div className="flex flex-wrap items-center justify-center gap-3 rounded-[9px] border border-brass-500/35 bg-brass-500/[0.08] px-5 py-4">
+          <IconCheck size={16} className="text-brass-300" />
+          <span className="text-[14px] text-brass-200">
+            {you.actionSkipped ? 'Вы пропустили ход' : `Ваш выбор: ${nameOf(you.actionTargetId)}`}
+          </span>
+          <span className="text-[13px] text-bone-700">Изменить уже нельзя</span>
+        </div>
+      );
+    }
+
+    if (!you.canAct) {
+      return <WaitingCard text="Город спит. Дождитесь утра." icon={<IconMoon size={16} className="text-steel-300/70" />} />;
+    }
+
+    const meta = ACTION_TITLES[room.nightSubPhase || 'mafia'];
+    const canSkip = room.nightSubPhase === 'mafia' || room.nightSubPhase === 'doctor';
+
+    return (
+      <div className="rounded-[9px] border border-blood-600/30 bg-blood-900/[0.14] px-5 py-4">
+        <p className="text-center font-display text-[19px] text-bone-50">{meta.title}</p>
+        <p className="mt-1.5 text-center text-[12.5px] text-bone-600">{meta.hint}</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2.5">
+          <Button onClick={onConfirm} disabled={!selected} size="lg" className="min-w-[220px]">
+            {selected ? `${meta.confirm}: ${nameOf(selected)}` : 'Выберите игрока'}
+          </Button>
+          {canSkip && (
+            <Button onClick={onSkip} variant="secondary" size="lg">
+              Пропустить
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (room.phase === 'voting') {
+    if (you.voteLocked) {
+      return (
+        <div className="flex flex-wrap items-center justify-center gap-3 rounded-[9px] border border-brass-500/35 bg-brass-500/[0.08] px-5 py-4">
+          <IconCheck size={16} className="text-brass-300" />
+          <span className="text-[14px] text-brass-200">
+            {you.voteSkipped ? 'Вы воздержались' : `Ваш голос: ${nameOf(you.voteTargetId)}`}
+          </span>
+          <span className="text-[13px] text-bone-700">
+            Проголосовали {room.votedCount ?? 0} из {room.voterCount ?? 0}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-[9px] border border-blood-600/30 bg-blood-900/[0.14] px-5 py-4">
+        <p className="text-center font-display text-[19px] text-bone-50">
+          {room.revoteRound > 0 ? 'Переголосовка' : 'Кого изгоняем из города'}
+        </p>
+        <p className="mt-1.5 text-center text-[12.5px] text-bone-600">
+          Голос отдаётся один раз и изменить его нельзя.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2.5">
+          <Button onClick={onConfirm} disabled={!selected} size="lg" className="min-w-[220px]">
+            {selected ? `Голосовать: ${nameOf(selected)}` : 'Выберите игрока'}
+          </Button>
+          <Button onClick={onSkip} variant="secondary" size="lg">
+            Воздержаться
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (room.phase === 'day') {
+    return (
+      <WaitingCard
+        text={
+          room.speaking
+            ? `Говорит ${room.speaking.nickname}. Остальные слушают.`
+            : 'Обсуждайте и ищите мафию. Ведущий откроет голосование.'
+        }
+        icon={<IconMic size={16} className="text-brass-300/70" />}
+      />
+    );
+  }
+
+  return null;
+}
+
+/* ── Страница ───────────────────────────────────────────────── */
 
 export function GamePage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const { nickname, playerId, roomCode, setPlayer } = usePlayerStore();
-  const { room, emit, connected } = useSocket();
+  const { room, emit, connected, socket } = useSocket();
   const sound = useSound();
 
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
@@ -68,6 +213,7 @@ export function GamePage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedOverlay, setCopiedOverlay] = useState(false);
   const [prevPhase, setPrevPhase] = useState<string | null>(null);
+  const [prevStep, setPrevStep] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const nightKill = useNightKillCutscene(room);
 
@@ -85,14 +231,26 @@ export function GamePage() {
         const result = await emit<{ success: boolean }>('reconnect', { code, playerId });
         if (result?.success) return;
       }
-      const result = await emit<{ success: boolean; playerId?: string }>('joinRoom', {
-        code,
-        nickname,
-      });
+      const result = await emit<{ success: boolean; playerId?: string; error?: string }>(
+        'joinRoom',
+        { code, nickname },
+      );
       if (result?.success && result.playerId) setPlayer(result.playerId, code);
+      else if (result?.error) showNotice(result.error);
     };
     connect();
   }, [code, nickname]);
+
+  useEffect(() => {
+    const onKicked = () => {
+      showNotice('Ведущий убрал вас из лобби');
+      window.setTimeout(() => navigate('/'), 1200);
+    };
+    socket.on('kicked', onKicked);
+    return () => {
+      socket.off('kicked', onKicked);
+    };
+  }, [socket, navigate]);
 
   useEffect(() => {
     if (room && prevPhase && room.phase !== prevPhase) {
@@ -101,20 +259,28 @@ export function GamePage() {
       if (room.phase === 'ended') sound.reveal();
       setSelectedTarget(null);
       setCheckResult(null);
+      setRoleFlipped(false);
     }
     if (room) setPrevPhase(room.phase);
   }, [room?.phase]);
 
+  // Новый ход ночью — сбрасываем выделение
+  useEffect(() => {
+    const key = `${room?.phase}-${room?.nightSubPhase}-${room?.dayNumber}`;
+    if (prevStep && key !== prevStep) setSelectedTarget(null);
+    setPrevStep(key);
+  }, [room?.nightSubPhase, room?.dayNumber, room?.phase]);
+
   const showNotice = (text: string) => {
     setNotice(text);
-    setTimeout(() => setNotice(null), 3200);
+    window.setTimeout(() => setNotice(null), 3200);
   };
 
   const copyCode = () => {
     navigator.clipboard.writeText(code || '');
     setCopiedCode(true);
     sound.click();
-    setTimeout(() => setCopiedCode(false), 1800);
+    window.setTimeout(() => setCopiedCode(false), 1800);
   };
 
   const overlayUrl = `${window.location.origin}/overlay/${code}`;
@@ -122,35 +288,41 @@ export function GamePage() {
     navigator.clipboard.writeText(overlayUrl);
     setCopiedOverlay(true);
     sound.confirm();
-    setTimeout(() => setCopiedOverlay(false), 1800);
+    window.setTimeout(() => setCopiedOverlay(false), 1800);
   };
 
-  const handleStartGame = async () => {
-    const result = await emit<{ success: boolean; error?: string }>('startGame');
-    if (result?.success) sound.reveal();
-    else if (result?.error) {
-      sound.error();
-      showNotice(result.error);
+  const handleHostAction = async (key: ScriptActionKey) => {
+    if (key === 'startGame') {
+      const result = await emit<{ success: boolean; error?: string }>('startGame');
+      if (result?.success) sound.reveal();
+      else {
+        sound.error();
+        showNotice(result?.error || 'Не удалось начать игру');
+      }
+      return;
     }
+    const events: Record<Exclude<ScriptActionKey, 'startGame'>, string> = {
+      startNight: 'hostStartNight',
+      advanceNight: 'hostAdvanceNight',
+      resolveNight: 'hostResolveNight',
+      nextSpeaker: 'hostNextSpeaker',
+      startVoting: 'hostStartVoting',
+      resolveVoting: 'hostResolveVoting',
+      restart: 'restartGame',
+    };
+    if (key === 'resolveNight' || key === 'resolveVoting') sound.death();
+    else sound.confirm();
+    emit(events[key]);
   };
 
-  const handleNightAction = async () => {
-    if (!selectedTarget) return;
+  const submitNight = async (targetId: string | null) => {
     const result = await emit<{ success: boolean; error?: string; checkResult?: string }>(
       'nightAction',
-      { targetId: selectedTarget },
+      { targetId },
     );
     if (result?.success) {
       sound.confirm();
-      if (result.checkResult) {
-        const labels: Record<string, string> = {
-          mafia: 'Этот игрок — мафия',
-          civilian: 'Этот игрок — мирный',
-          sheriff: 'Этот игрок — шериф',
-          not_sheriff: 'Этот игрок не шериф',
-        };
-        setCheckResult(labels[result.checkResult] || result.checkResult);
-      }
+      if (result.checkResult) setCheckResult(CHECK_TOASTS[result.checkResult] || result.checkResult);
       setSelectedTarget(null);
     } else {
       sound.error();
@@ -158,11 +330,8 @@ export function GamePage() {
     }
   };
 
-  const handleVote = async () => {
-    if (!selectedTarget) return;
-    const result = await emit<{ success: boolean; error?: string }>('vote', {
-      targetId: selectedTarget,
-    });
+  const submitVote = async (targetId: string | null) => {
+    const result = await emit<{ success: boolean; error?: string }>('vote', { targetId });
     if (result?.success) {
       sound.confirm();
       setSelectedTarget(null);
@@ -170,6 +339,11 @@ export function GamePage() {
       sound.error();
       showNotice(result?.error || 'Голос не принят');
     }
+  };
+
+  const sendChat = async (text: string): Promise<string | null> => {
+    const result = await emit<{ success: boolean; error?: string }>('chat', { text });
+    return result?.success ? null : result?.error || 'Сообщение не отправлено';
   };
 
   if (!connected || !room) {
@@ -183,17 +357,34 @@ export function GamePage() {
     );
   }
 
-  const hint = getHint(room.phase, room.nightSubPhase, myRole, isHost);
-  const canAct =
-    !isHost &&
-    me?.alive &&
-    room.phase === 'night' &&
-    ((room.nightSubPhase === 'mafia' && (myRole === 'mafia' || myRole === 'don')) ||
-      (room.nightSubPhase === 'don' && myRole === 'don') ||
-      (room.nightSubPhase === 'sheriff' && myRole === 'sheriff') ||
-      (room.nightSubPhase === 'doctor' && myRole === 'doctor'));
-  const canVote = !isHost && me?.alive && room.phase === 'voting';
   const inLobby = room.phase === 'lobby';
+  const inGame = !inLobby && room.phase !== 'roleReveal';
+  const you = room.you;
+  const selectable = Boolean(
+    !isHost &&
+      me?.alive &&
+      ((room.phase === 'night' && you?.canAct) || (room.phase === 'voting' && !you?.voteLocked)),
+  );
+
+  // Подписи под игроками: кто как голосует, куда целится мафия
+  const annotations: Record<string, string> = {};
+  if (room.phase === 'night' && room.mafiaVotes) {
+    Object.entries(room.mafiaVotes).forEach(([voterId, targetId]) => {
+      if (!targetId) return;
+      const voter = room.players.find((p) => p.id === voterId);
+      if (!voter || voter.id === playerId) return;
+      annotations[targetId] = `выбор ${voter.nickname}`;
+    });
+  }
+  if (isHost && room.phase === 'night' && room.nightPicks) {
+    const { don, sheriff, doctor } = room.nightPicks;
+    if (don) annotations[don] = 'проверка дона';
+    if (sheriff) annotations[sheriff] = 'проверка шерифа';
+    if (doctor) annotations[doctor] = 'лечит доктор';
+  }
+
+  const hostPlayer = room.players.find((p) => p.isHost);
+  const tablePlayers = room.players.filter((p) => !p.isHost).sort((a, b) => a.slot - b.slot);
 
   return (
     <div className="grain relative min-h-screen bg-ink-1000">
@@ -211,14 +402,10 @@ export function GamePage() {
       />
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <NightKillCutscene
-        open={nightKill.open}
-        victim={nightKill.victim}
-        onDone={nightKill.close}
-      />
+      <NightKillCutscene open={nightKill.open} victim={nightKill.victim} onDone={nightKill.close} />
 
       <header className="sticky top-0 z-30 border-b border-bone-50/[0.08] bg-ink-1000/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4 px-5 py-3">
+        <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-4">
             <IconButton label="На главную" onClick={() => navigate('/')}>
               <IconArrowLeft size={18} />
@@ -262,7 +449,6 @@ export function GamePage() {
         </div>
       </header>
 
-      {/* Всплывающее уведомление */}
       <AnimatePresence>
         {notice && (
           <motion.div
@@ -277,21 +463,19 @@ export function GamePage() {
         )}
       </AnimatePresence>
 
-      <main className="relative z-10 mx-auto max-w-[1180px] px-5 py-6">
+      <main className="relative z-10 mx-auto max-w-[1320px] px-5 py-6">
         <PhaseBanner
           phase={room.phase}
           nightSubPhase={room.nightSubPhase}
           dayNumber={room.dayNumber}
+          aliveCount={room.aliveCount}
         />
 
-        <motion.p
-          key={hint}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-4 text-center text-[14px] text-bone-400"
-        >
-          {hint}
-        </motion.p>
+        {room.timer && !isHost && (
+          <div className="mt-4">
+            <TimerBar timer={room.timer} />
+          </div>
+        )}
 
         <AnimatePresence>
           {checkResult && (
@@ -308,75 +492,91 @@ export function GamePage() {
           )}
         </AnimatePresence>
 
-        <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_320px]">
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* ── Основная колонка ── */}
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
+            {isHost && <HostScript room={room} onAction={handleHostAction} />}
+
             {inLobby && (
-              <Panel
-                title="За столом"
-                action={<Badge>{room.playerCount} человек</Badge>}
-              >
+              <Panel title="За столом" action={<Badge>{room.gamePlayerCount} игроков</Badge>}>
+                {hostPlayer && (
+                  <div className="mb-3 flex items-center gap-3 rounded-[7px] border border-brass-500/25 bg-brass-500/[0.06] px-3 py-2.5">
+                    <img
+                      src={avatarUrl(0)}
+                      alt=""
+                      className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-brass-400/30"
+                      draggable={false}
+                    />
+                    <span className="truncate text-[15px] text-bone-50">{hostPlayer.nickname}</span>
+                    <Badge tone="brass" icon={<IconMic size={11} />}>
+                      Ведущий
+                    </Badge>
+                  </div>
+                )}
+
                 <ul className="divide-y divide-bone-50/[0.07]">
-                  {room.players
-                    .slice()
-                    .sort((a, b) => a.slot - b.slot)
-                    .map((p) => (
-                      <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <img
-                            src={avatarUrl(p.slot)}
-                            alt=""
-                            className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-bone-50/10"
-                            draggable={false}
-                          />
-                          <span className="font-mono text-[11px] tnum text-bone-700">
-                            {String(p.slot).padStart(2, '0')}
-                          </span>
-                          <span className="truncate text-[15px] text-bone-50">{p.nickname}</span>
-                          {p.isHost && (
-                            <Badge tone="brass" icon={<IconMic size={11} />}>
-                              Ведущий
-                            </Badge>
-                          )}
-                          {p.id === playerId && !p.isHost && <Badge>Вы</Badge>}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {p.hasCamera ? (
-                            <IconCamera size={15} className="text-sage-400" strokeWidth={1.4} />
-                          ) : (
-                            <IconCameraOff size={15} className="text-bone-700" strokeWidth={1.4} />
-                          )}
-                          {(me?.isCreator || isHost) && !p.isHost && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                emit('setHost', { playerId: p.id });
-                                sound.confirm();
-                              }}
-                            >
-                              Сделать ведущим
-                            </Button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                  {tablePlayers.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <img
+                          src={avatarUrl(p.slot)}
+                          alt=""
+                          className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-bone-50/10"
+                          draggable={false}
+                        />
+                        <span className="font-mono text-[11px] tnum text-bone-700">
+                          {String(p.slot).padStart(2, '0')}
+                        </span>
+                        <span className="truncate text-[15px] text-bone-50">{p.nickname}</span>
+                        {p.id === playerId && <Badge>Вы</Badge>}
+                        {p.isBot && <Badge icon={<IconRobot size={11} />}>Бот</Badge>}
+                        {p.ready && !p.isBot && (
+                          <Badge tone="sage" icon={<IconCheck size={11} />}>
+                            Готов
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {p.isBot ? null : p.hasCamera ? (
+                          <IconCamera size={15} className="text-sage-400" strokeWidth={1.4} />
+                        ) : (
+                          <IconCameraOff size={15} className="text-bone-700" strokeWidth={1.4} />
+                        )}
+                        {(me?.isCreator || isHost) && !p.isBot && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              emit('setHost', { playerId: p.id });
+                              sound.confirm();
+                            }}
+                          >
+                            Ведущий
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
                 </ul>
 
-                {isHost && (
-                  <div className="mt-5">
-                    <Button
-                      onClick={handleStartGame}
-                      disabled={!room.canStart}
-                      size="lg"
-                      className="w-full"
-                      icon={<IconPlay size={16} />}
-                    >
-                      {room.canStart
-                        ? 'Начать игру'
-                        : `Ждём ещё ${Math.max(0, 6 - room.gamePlayerCount)}`}
-                    </Button>
-                  </div>
+                {tablePlayers.length === 0 && (
+                  <p className="py-4 text-center text-[13px] text-bone-700">
+                    Отправьте код друзьям — они появятся здесь
+                  </p>
+                )}
+
+                {!isHost && me && (
+                  <Button
+                    onClick={() => {
+                      emit('setReady', { ready: !me.ready });
+                      sound.click();
+                    }}
+                    variant={me.ready ? 'secondary' : 'primary'}
+                    className="mt-5 w-full"
+                    icon={<IconCheck size={16} />}
+                  >
+                    {me.ready ? 'Я ещё не готов' : 'Я готов'}
+                  </Button>
                 )}
               </Panel>
             )}
@@ -396,52 +596,63 @@ export function GamePage() {
                   }}
                 />
                 <Button
-                  onClick={() => emit('advanceRoleReveal')}
-                  variant="secondary"
+                  onClick={() => {
+                    emit('roleSeen');
+                    sound.confirm();
+                  }}
+                  variant={me?.roleSeen ? 'secondary' : 'primary'}
+                  disabled={!roleFlipped || me?.roleSeen}
                   className="mt-7"
+                  icon={me?.roleSeen ? <IconCheck size={16} /> : undefined}
                 >
-                  Я запомнил
+                  {me?.roleSeen ? 'Ждём остальных' : 'Я запомнил роль'}
                 </Button>
+                {!roleFlipped && (
+                  <p className="mt-3 text-[12.5px] text-bone-700">Нажмите на карту, чтобы открыть</p>
+                )}
               </div>
             )}
 
-            {room.phase === 'roleReveal' && isHost && (
-              <Panel>
-                <p className="py-4 text-center text-[14px] text-bone-600">
-                  Игроки изучают свои карты
-                </p>
-              </Panel>
-            )}
-
-            {!inLobby && room.phase !== 'roleReveal' && (
+            {inGame && (
               <>
                 <PlayerGrid
                   players={room.players}
                   currentPlayerId={playerId || undefined}
-                  selectable={Boolean(canAct || canVote)}
+                  selectable={selectable}
                   selectedId={selectedTarget}
                   onSelect={(id) => {
                     setSelectedTarget(id);
                     sound.click();
                   }}
-                  showRoles={isHost}
+                  lockedTargetId={
+                    room.phase === 'voting'
+                      ? you?.voteLocked
+                        ? you.voteTargetId
+                        : null
+                      : you?.actionLocked
+                        ? you.actionTargetId
+                        : null
+                  }
+                  tally={room.phase === 'voting' ? room.voteTally : undefined}
+                  candidateIds={room.phase === 'voting' ? room.voteCandidateIds : null}
+                  annotations={annotations}
+                  speakingId={room.speaking?.playerId || null}
                 />
 
-                {(canAct || canVote) && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-center pt-1"
-                  >
-                    <Button
-                      onClick={canVote ? handleVote : handleNightAction}
-                      disabled={!selectedTarget}
-                      size="lg"
-                      className="min-w-[240px]"
-                    >
-                      {canVote ? 'Проголосовать' : 'Подтвердить'}
-                    </Button>
-                  </motion.div>
+                {!isHost && me && (
+                  <PlayerActions
+                    room={room}
+                    me={me}
+                    selected={selectedTarget}
+                    onConfirm={() =>
+                      room.phase === 'voting'
+                        ? submitVote(selectedTarget)
+                        : submitNight(selectedTarget)
+                    }
+                    onSkip={() =>
+                      room.phase === 'voting' ? submitVote(null) : submitNight(null)
+                    }
+                  />
                 )}
               </>
             )}
@@ -462,7 +673,9 @@ export function GamePage() {
                 >
                   {room.lastNightResult.peaceful ? (
                     <p className="text-[15px] text-sage-400">
-                      Ночь прошла спокойно — все живы
+                      {room.lastNightResult.saved
+                        ? 'Доктор успел вовремя — все живы'
+                        : 'Ночь прошла спокойно — все живы'}
                     </p>
                   ) : (
                     <p className="text-[15px] text-blood-300">
@@ -470,24 +683,40 @@ export function GamePage() {
                         {room.lastNightResult.killedName}
                       </span>{' '}
                       не пережил эту ночь
+                      {room.lastNightResult.killedRole && (
+                        <span className="text-bone-600">
+                          {' '}
+                          · {ROLE_LABELS[room.lastNightResult.killedRole]}
+                        </span>
+                      )}
                     </p>
                   )}
                 </motion.div>
               )}
 
-              {room.lastVoteResult?.exiledName && room.phase === 'night' && (
+              {room.lastVoteResult && room.phase === 'night' && (
                 <motion.div
                   key="vote-result"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="rounded-[9px] border border-brass-500/30 bg-brass-500/[0.08] px-5 py-4 text-center"
                 >
-                  <p className="text-[15px] text-brass-300">
-                    Город изгнал{' '}
-                    <span className="font-display text-[18px]">
-                      {room.lastVoteResult.exiledName}
-                    </span>
-                  </p>
+                  {room.lastVoteResult.exiledName ? (
+                    <p className="text-[15px] text-brass-300">
+                      Город изгнал{' '}
+                      <span className="font-display text-[18px]">
+                        {room.lastVoteResult.exiledName}
+                      </span>
+                      {room.lastVoteResult.exiledRole && (
+                        <span className="text-bone-600">
+                          {' '}
+                          · {ROLE_LABELS[room.lastVoteResult.exiledRole]}
+                        </span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-[15px] text-bone-400">Никто не был изгнан</p>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -497,7 +726,7 @@ export function GamePage() {
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="panel flex flex-col items-center px-6 py-12 text-center"
+                className="panel flex flex-col items-center px-6 py-10 text-center"
               >
                 <IconTrophy size={38} className="text-brass-400" strokeWidth={1.1} />
                 <h2 className="mt-5 font-display text-[34px] leading-none text-bone-50">
@@ -505,37 +734,39 @@ export function GamePage() {
                 </h2>
                 <p className="mt-3 text-[14px] text-bone-600">
                   {room.winner === 'city'
-                    ? 'Все члены мафии найдены и изгнаны'
+                    ? 'Вся мафия найдена и изгнана'
                     : 'Мафия сравнялась числом с городом'}
                 </p>
-                <Button onClick={() => navigate('/')} variant="secondary" className="mt-7">
-                  Вернуться на главную
-                </Button>
+                {!isHost && (
+                  <p className="mt-5 text-[13px] text-bone-700">
+                    Ведущий может собрать новый стол — вы останетесь в лобби
+                  </p>
+                )}
               </motion.div>
             )}
           </div>
 
           {/* ── Боковая колонка ── */}
-          <aside className="space-y-4">
+          <aside className="min-w-0 space-y-4">
             {isHost && (
               <HostPanel
                 room={room}
-                onAdvanceRoleReveal={() => emit('advanceRoleReveal')}
-                onAdvanceNight={() => emit('hostAdvanceNight')}
-                onResolveNight={() => {
-                  emit('hostResolveNight');
-                  sound.death();
-                }}
-                onStartVoting={() => emit('hostStartVoting')}
-                onResolveVoting={() => {
-                  emit('hostResolveVoting');
-                  sound.death();
-                }}
                 onUpdateSettings={(s) => emit('updateSettings', { settings: s })}
+                onTimer={(action, seconds, label) =>
+                  emit('hostTimer', { action, seconds, label })
+                }
+                onForceKill={(id) => emit('hostForceKill', { playerId: id })}
+                onKick={(id) => emit('kickPlayer', { playerId: id })}
+                onAddBot={async () => {
+                  const res = await emit<{ success: boolean; error?: string }>('addBot');
+                  if (res?.error) showNotice(res.error);
+                  else sound.click();
+                }}
+                onRemoveBots={() => emit('removeBots')}
               />
             )}
 
-            {!isHost && myRole && !inLobby && room.phase !== 'roleReveal' && (
+            {!isHost && myRole && !inLobby && (
               <Panel title="Ваша роль">
                 <RoleBadge role={myRole} />
                 {(myRole === 'mafia' || myRole === 'don') && (
@@ -544,13 +775,13 @@ export function GamePage() {
                     <ul className="space-y-1.5">
                       {room.players
                         .filter((p) => p.isTeammate || p.id === playerId)
+                        .sort((a, b) => a.slot - b.slot)
                         .map((p) => (
-                          <li
-                            key={p.id}
-                            className="flex items-center justify-between text-[13px]"
-                          >
-                            <span className={p.alive ? 'text-bone-200' : 'text-bone-700 line-through'}>
-                              {p.nickname}
+                          <li key={p.id} className="flex items-center justify-between text-[13px]">
+                            <span
+                              className={p.alive ? 'text-bone-200' : 'text-bone-700 line-through'}
+                            >
+                              {String(p.slot).padStart(2, '0')} · {p.nickname}
                             </span>
                             {p.role && (
                               <span className="text-blood-400/80">
@@ -565,6 +796,8 @@ export function GamePage() {
               </Panel>
             )}
 
+            {!isHost && you && you.checks.length > 0 && <CheckHistory checks={you.checks} />}
+
             {isHost && inLobby && (
               <Panel title="Экран для OBS">
                 <p className="mb-3 text-[13px] leading-relaxed text-bone-600">
@@ -574,13 +807,15 @@ export function GamePage() {
               </Panel>
             )}
 
+            {inLobby && <RulesPanel includeDoctor={room.settings.includeDoctor} />}
+
             {!isHost && inLobby && (
               <Panel title="Как начать">
                 <ol className="space-y-3 text-[13px] leading-relaxed text-bone-600">
                   {[
-                    'Включите камеру в блоке слева',
-                    'Дождитесь, пока соберутся все игроки',
-                    'Ведущий запустит партию',
+                    'Включите камеру — или играйте без неё, вам дадут аватар',
+                    'Нажмите «Я готов»',
+                    'Ведущий раздаст роли и начнёт партию',
                   ].map((step, i) => (
                     <li key={step} className="flex gap-3">
                       <span className="font-mono text-[11px] tnum text-bone-700">
@@ -592,6 +827,10 @@ export function GamePage() {
                 </ol>
               </Panel>
             )}
+
+            {room.settings.chatEnabled && <Chat room={room} me={me} onSend={sendChat} />}
+
+            {!inLobby && <GameLog entries={room.log} />}
           </aside>
         </div>
       </main>

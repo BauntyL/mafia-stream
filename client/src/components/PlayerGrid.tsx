@@ -1,7 +1,18 @@
 import { motion } from 'framer-motion';
 import type { Player, Phase, Role } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
-import { ROLE_EMBLEMS, IconCamera, IconMoon, IconSun, IconGavel, IconTrophy, IconUsers } from './Icons';
+import {
+  ROLE_EMBLEMS,
+  IconCamera,
+  IconMoon,
+  IconSun,
+  IconGavel,
+  IconTrophy,
+  IconUsers,
+  IconCheck,
+  IconMic,
+  IconRobot,
+} from './Icons';
 import { avatarUrl } from '../utils/avatar';
 
 interface PlayerGridProps {
@@ -10,7 +21,15 @@ interface PlayerGridProps {
   selectable?: boolean;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
-  showRoles?: boolean;
+  /** Подтверждённый и уже неизменяемый выбор игрока */
+  lockedTargetId?: string | null;
+  /** Живой подсчёт голосов на дневном голосовании */
+  tally?: Record<string, number>;
+  /** Кого вообще можно выбрать (например, при переголосовке) */
+  candidateIds?: string[] | null;
+  /** Подписи под именем: id игрока → текст */
+  annotations?: Record<string, string>;
+  speakingId?: string | null;
 }
 
 export function PlayerGrid({
@@ -19,7 +38,11 @@ export function PlayerGrid({
   selectable,
   selectedId,
   onSelect,
-  showRoles,
+  lockedTargetId,
+  tally,
+  candidateIds,
+  annotations,
+  speakingId,
 }: PlayerGridProps) {
   const gamePlayers = players.filter((p) => !p.isHost).sort((a, b) => a.slot - b.slot);
 
@@ -27,10 +50,16 @@ export function PlayerGrid({
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
       {gamePlayers.map((player) => {
         const isMe = player.id === currentPlayerId;
+        const isCandidate = !candidateIds || candidateIds.includes(player.id);
         const isSelected = selectedId === player.id;
-        const canSelect = Boolean(selectable && player.alive);
+        const isLocked = lockedTargetId === player.id;
+        const canSelect = Boolean(selectable && player.alive && isCandidate && !lockedTargetId);
         const role = player.role as Role | undefined;
-        const Emblem = role && showRoles ? ROLE_EMBLEMS[role] : null;
+        // Сервер сам решает, кому какую роль показывать — если она пришла, её можно рисовать
+        const Emblem = role ? ROLE_EMBLEMS[role] : null;
+        const votes = tally?.[player.id] || 0;
+        const speaking = speakingId === player.id;
+        const note = annotations?.[player.id];
 
         return (
           <motion.button
@@ -47,16 +76,20 @@ export function PlayerGrid({
               ${
                 !player.alive
                   ? 'border-bone-50/[0.06] bg-ink-1000/70'
-                  : isSelected
-                    ? 'border-blood-500/70 bg-blood-900/25'
-                    : isMe
-                      ? 'border-bone-50/20 bg-bone-50/[0.05]'
-                      : canSelect
-                        ? 'cursor-pointer border-bone-50/10 bg-bone-50/[0.025] hover:border-bone-50/25 hover:bg-bone-50/[0.05]'
-                        : 'border-bone-50/[0.08] bg-bone-50/[0.02]'
-              }`}
+                  : isLocked
+                    ? 'border-brass-500/60 bg-brass-500/[0.10]'
+                    : isSelected
+                      ? 'border-blood-500/70 bg-blood-900/25'
+                      : speaking
+                        ? 'border-brass-400/50 bg-brass-500/[0.07]'
+                        : isMe
+                          ? 'border-bone-50/20 bg-bone-50/[0.05]'
+                          : canSelect
+                            ? 'cursor-pointer border-bone-50/10 bg-bone-50/[0.025] hover:border-bone-50/25 hover:bg-bone-50/[0.05]'
+                            : 'border-bone-50/[0.08] bg-bone-50/[0.02]'
+              }
+              ${selectable && !isCandidate && player.alive ? 'opacity-40' : ''}`}
           >
-            {/* Мёртвый: диагональная штриховка */}
             {!player.alive && (
               <span
                 className="pointer-events-none absolute inset-0 opacity-[0.5]"
@@ -67,7 +100,7 @@ export function PlayerGrid({
               />
             )}
 
-            {isSelected && (
+            {isSelected && !isLocked && (
               <motion.span
                 layoutId="target-marker"
                 className="absolute inset-0 rounded-[9px] ring-1 ring-inset ring-blood-400/50"
@@ -79,7 +112,8 @@ export function PlayerGrid({
                 <img
                   src={avatarUrl(player.slot)}
                   alt=""
-                  className="h-7 w-7 rounded-full object-cover ring-1 ring-bone-50/10"
+                  className={`h-7 w-7 rounded-full object-cover ring-1 ring-bone-50/10
+                    ${player.alive ? '' : 'grayscale'}`}
                   draggable={false}
                 />
                 <span className="font-mono text-[11px] tnum text-bone-700">
@@ -87,10 +121,23 @@ export function PlayerGrid({
                 </span>
               </span>
               <span className="flex items-center gap-1.5">
+                {votes > 0 && (
+                  <span
+                    className="rounded-full border border-blood-600/45 bg-blood-900/40 px-1.5
+                      text-[11px] font-medium tnum text-blood-200"
+                  >
+                    {votes}
+                  </span>
+                )}
+                {speaking && <IconMic size={13} className="text-brass-300" strokeWidth={1.5} />}
+                {isLocked && <IconCheck size={13} className="text-brass-300" strokeWidth={2} />}
+                {player.isBot && (
+                  <IconRobot size={13} className="text-bone-700" strokeWidth={1.4} />
+                )}
                 {player.hasCamera && player.alive && (
                   <IconCamera size={13} className="text-bone-700" strokeWidth={1.4} />
                 )}
-                {!player.connected && (
+                {!player.connected && !player.isBot && (
                   <span className="h-1.5 w-1.5 rounded-full bg-brass-500/80" title="Оффлайн" />
                 )}
               </span>
@@ -103,14 +150,14 @@ export function PlayerGrid({
               {player.nickname}
             </p>
 
-            <div className="relative mt-2 flex min-h-[18px] items-center gap-2">
+            <div className="relative mt-2 flex min-h-[18px] flex-wrap items-center gap-x-2 gap-y-1">
               {isMe && player.alive && (
                 <span className="text-[10px] uppercase tracking-[0.16em] text-bone-600">Вы</span>
               )}
               {player.isTeammate && (
                 <span className="text-[10px] uppercase tracking-[0.16em] text-blood-400">Свой</span>
               )}
-              {showRoles && role && Emblem && (
+              {Emblem && role && (
                 <span className="flex items-center gap-1.5">
                   <Emblem size={13} style={{ color: ROLE_COLORS[role] }} strokeWidth={1.4} />
                   <span className="text-[11px]" style={{ color: `${ROLE_COLORS[role]}cc` }}>
@@ -121,6 +168,11 @@ export function PlayerGrid({
               {!player.alive && (
                 <span className="text-[10px] uppercase tracking-[0.16em] text-blood-400/80">
                   {player.deathReason === 'killed' ? 'Убит ночью' : 'Изгнан днём'}
+                </span>
+              )}
+              {note && (
+                <span className="text-[10px] uppercase tracking-[0.14em] text-brass-300/85">
+                  {note}
                 </span>
               )}
             </div>
@@ -135,6 +187,7 @@ interface PhaseBannerProps {
   phase: Phase;
   nightSubPhase?: string | null;
   dayNumber?: number;
+  aliveCount?: number;
 }
 
 const PHASE_META: Record<
@@ -157,7 +210,7 @@ const SUB_LABELS: Record<string, string> = {
   resolve: 'Итоги ночи',
 };
 
-export function PhaseBanner({ phase, nightSubPhase, dayNumber }: PhaseBannerProps) {
+export function PhaseBanner({ phase, nightSubPhase, dayNumber, aliveCount }: PhaseBannerProps) {
   const meta = PHASE_META[phase] ?? PHASE_META.lobby;
   const { Icon } = meta;
   const showDay = phase === 'night' || phase === 'day';
@@ -198,17 +251,24 @@ export function PhaseBanner({ phase, nightSubPhase, dayNumber }: PhaseBannerProp
           </div>
         </div>
 
-        {phase === 'night' && (
-          <div className="hidden items-center gap-1.5 sm:flex">
-            {['mafia', 'don', 'sheriff', 'doctor'].map((step) => (
-              <span
-                key={step}
-                className={`h-[3px] w-7 rounded-full transition-colors duration-300
-                  ${nightSubPhase === step ? 'bg-steel-300' : 'bg-bone-50/12'}`}
-              />
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {typeof aliveCount === 'number' && phase !== 'lobby' && (
+            <span className="hidden text-[12px] text-bone-600 sm:block">
+              в живых <span className="tnum text-bone-200">{aliveCount}</span>
+            </span>
+          )}
+          {phase === 'night' && (
+            <div className="hidden items-center gap-1.5 sm:flex">
+              {['mafia', 'don', 'sheriff', 'doctor'].map((step) => (
+                <span
+                  key={step}
+                  className={`h-[3px] w-7 rounded-full transition-colors duration-300
+                    ${nightSubPhase === step ? 'bg-steel-300' : 'bg-bone-50/12'}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

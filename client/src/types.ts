@@ -4,21 +4,65 @@ export type Phase = 'lobby' | 'roleReveal' | 'night' | 'day' | 'voting' | 'ended
 
 export type NightSubPhase = 'mafia' | 'don' | 'sheriff' | 'doctor' | 'resolve' | null;
 
+export type ChatChannel = 'all' | 'mafia' | 'dead' | 'system';
+
 export interface Player {
   id: string;
   nickname: string;
   slot: number;
   isHost: boolean;
   isCreator: boolean;
+  isBot: boolean;
   alive: boolean;
   deathReason: 'killed' | 'voted' | null;
   deathPhase: 'night' | 'day' | null;
+  deathDay: number | null;
   connected: boolean;
+  ready: boolean;
+  roleSeen: boolean;
   hasCamera: boolean;
   cameraStreamId: string | null;
   cameraViewUrl: string | null;
   role?: Role;
   isTeammate?: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  at: number;
+  channel: ChatChannel;
+  text: string;
+  system: boolean;
+  authorId: string | null;
+  authorName: string | null;
+  authorSlot: number | null;
+  isHost?: boolean;
+}
+
+export interface LogEntry {
+  id: string;
+  at: number;
+  day: number;
+  text: string;
+  tone: 'neutral' | 'blood' | 'sage' | 'brass' | 'night';
+}
+
+export interface CheckRecord {
+  night: number;
+  targetId: string;
+  targetName: string;
+  targetSlot: number;
+  result: 'mafia' | 'civilian' | 'sheriff' | 'not_sheriff';
+}
+
+export interface GameSettings {
+  includeDoctor: boolean;
+  discussionTime: number;
+  speechTime: number;
+  showHostInOverlay: boolean;
+  revealRoleOnDeath: boolean;
+  autoAdvanceNight: boolean;
+  chatEnabled: boolean;
 }
 
 export interface RoomState {
@@ -28,28 +72,78 @@ export interface RoomState {
   dayNumber: number;
   hostId: string;
   players: Player[];
-  settings: {
-    includeDoctor: boolean;
-    discussionTime: number;
-    showHostInOverlay: boolean;
-  };
+  settings: GameSettings;
   lastNightResult: {
     peaceful: boolean;
+    saved: boolean;
     killedId: string | null;
     killedName: string | null;
+    killedSlot: number | null;
+    killedRole: Role | null;
   } | null;
   lastVoteResult: {
     exiledId: string | null;
     exiledName: string | null;
+    exiledRole: Role | null;
     tie: boolean;
+    revote: boolean;
     voteCounts: Record<string, number>;
+    breakdown: {
+      voterId: string;
+      voterName: string;
+      targetId: string | null;
+      targetName: string | null;
+    }[];
   } | null;
   winner: 'city' | 'mafia' | null;
-  roleRevealIndex: number;
   hostVotes: Record<string, string>;
   playerCount: number;
   gamePlayerCount: number;
+  aliveCount: number;
+  minPlayers: number;
+  maxPlayers: number;
   canStart: boolean;
+  timer: { endsAt: number; total: number; label: string } | null;
+  speaking: { playerId: string; nickname: string; slot: number } | null;
+  log: LogEntry[];
+  chat: ChatMessage[];
+  voteCandidateIds: string[] | null;
+  revoteRound: number;
+  gameNumber: number;
+  stepReady: boolean;
+
+  voteTally?: Record<string, number>;
+  voteAbstained?: number;
+  votedCount?: number;
+  voterCount?: number;
+  publicVotes?: Record<string, string | null>;
+
+  /** Только для ведущего */
+  step?: { total: number; done: number; waiting: string[]; ready: boolean };
+  mafiaVotes?: Record<string, string | null>;
+  nightPicks?: {
+    mafia: Record<string, string>;
+    don: string | null;
+    sheriff: string | null;
+    doctor: string | null;
+  };
+
+  /** Только для самого игрока */
+  you?: {
+    id: string;
+    alive: boolean;
+    canAct: boolean;
+    actionLocked: boolean;
+    actionTargetId: string | null;
+    actionSkipped: boolean;
+    voteLocked: boolean;
+    voteTargetId: string | null;
+    voteSkipped: boolean;
+    checks: CheckRecord[];
+    selfHealUsed: boolean;
+    canSelfHeal: boolean;
+    blockedHealId: string | null;
+  };
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -99,4 +193,11 @@ export const NIGHT_SUBPHASE_LABELS: Record<string, string> = {
   sheriff: 'Ход шерифа',
   doctor: 'Ход доктора',
   resolve: 'Подведение итогов',
+};
+
+export const CHECK_LABELS: Record<string, string> = {
+  mafia: 'мафия',
+  civilian: 'мирный',
+  sheriff: 'шериф',
+  not_sheriff: 'не шериф',
 };
