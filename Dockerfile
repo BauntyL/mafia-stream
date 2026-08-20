@@ -6,11 +6,10 @@ COPY client/package.json client/package-lock.json ./client/
 COPY server/package.json server/package-lock.json ./server/
 
 RUN npm install
-RUN npm install --prefix client --include=dev
+RUN npm install --prefix client --include=dev --include=optional
 RUN npm install --prefix server
 
 COPY . .
-RUN npm rebuild --prefix client lightningcss @tailwindcss/oxide || true
 RUN npm run build --prefix client
 
 FROM node:22-bookworm-slim
