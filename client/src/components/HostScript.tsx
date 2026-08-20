@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './Button';
 import { Badge } from './ui';
@@ -75,6 +76,8 @@ export function HostScript({ room, onAction }: HostScriptProps) {
   const stepReady = step ? step.ready : true;
   const canStart = script.action?.key !== 'startGame' || room.canStart;
   const actionEnabled = (!gated || stepReady) && canStart && !narratorBusy;
+  const [abortArmed, setAbortArmed] = useState(false);
+  const inMatch = room.phase !== 'lobby' && room.phase !== 'ended';
 
   return (
     <section className="panel relative overflow-hidden border-brass-500/25">
@@ -203,6 +206,23 @@ export function HostScript({ room, onAction }: HostScriptProps) {
                 className="flex-1"
               >
                 Пропустить диктора
+              </Button>
+            )}
+            {inMatch && (
+              <Button
+                variant={abortArmed ? 'danger' : 'ghost'}
+                className="flex-1"
+                onClick={() => {
+                  if (!abortArmed) {
+                    setAbortArmed(true);
+                    window.setTimeout(() => setAbortArmed(false), 3500);
+                    return;
+                  }
+                  setAbortArmed(false);
+                  onAction('abortGame');
+                }}
+              >
+                {abortArmed ? 'Точно завершить?' : 'Завершить игру'}
               </Button>
             )}
           </div>

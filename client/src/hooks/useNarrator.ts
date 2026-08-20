@@ -124,10 +124,13 @@ export function useNarrator(room: RoomState | null) {
       return;
     }
     const remaining = narratorLeftMs(endsAt);
-    if (endsAt && remaining <= 250) return;
+    if (!endsAt || remaining <= 250) {
+      stopNarrator();
+      return;
+    }
 
     const total = getNarratorDurationMs(ids, voiceId, clipMs);
-    const offset = endsAt ? Math.max(0, total - remaining) : 0;
+    const offset = Math.max(0, total - remaining);
     playNarratorQueue(ids, volumeRef.current, offset, { voiceId, clipMs });
     return () => stopNarrator();
   }, [key, endsAt, room?.settings?.narratorEnabled, voiceId]);

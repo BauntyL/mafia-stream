@@ -397,6 +397,15 @@ export function restartGame(room) {
   armNarrator(room);
 }
 
+export function abortGame(room) {
+  if (room.phase === PHASES.LOBBY) return { error: 'Игра ещё не началась' };
+  skipNarrator(room);
+  restartGame(room);
+  pushLog(room, 'Ведущий принудительно завершил партию', 'blood');
+  systemChat(room, 'Ведущий завершил игру. Стол снова в лобби.');
+  return { success: true };
+}
+
 export function markRoleSeen(room, playerId) {
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return false;

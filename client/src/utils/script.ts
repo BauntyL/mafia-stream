@@ -9,6 +9,7 @@ export type ScriptActionKey =
   | 'startVoting'
   | 'skipNarrator'
   | 'resolveVoting'
+  | 'abortGame'
   | 'restart';
 
 /** Сцена на экране. У сцены может быть несколько файлов озвучки подряд. */

@@ -370,7 +370,18 @@ export function GamePage() {
       await emit('skipNarrator');
       return;
     }
-    const events: Record<Exclude<ScriptActionKey, 'startGame' | 'skipNarrator'>, string> = {
+    if (key === 'abortGame') {
+      stopNarrator();
+      const result = await emit<{ success: boolean; error?: string }>('abortGame');
+      if (result?.success === false) {
+        sound.error();
+        showNotice(result.error || 'Не удалось завершить игру');
+        return;
+      }
+      sound.confirm();
+      return;
+    }
+    const events: Record<Exclude<ScriptActionKey, 'startGame' | 'skipNarrator' | 'abortGame'>, string> = {
       startNight: 'hostStartNight',
       advanceNight: 'hostAdvanceNight',
       resolveNight: 'hostResolveNight',

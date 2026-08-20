@@ -19,6 +19,7 @@ import {
   removeBots,
   startGame,
   restartGame,
+  abortGame,
   markRoleSeen,
   startNight,
   submitNightAction,
@@ -377,6 +378,17 @@ io.on('connection', (socket) => {
     }
     cb?.({ success: true });
     emitRoomUpdate(room);
+  });
+
+  socket.on('abortGame', (_, cb) => {
+    const { room } = hostCtx();
+    if (!room) return done(cb);
+    const result = abortGame(room);
+    if (result.error) {
+      cb?.({ success: false, error: result.error });
+      return;
+    }
+    done(cb, room);
   });
 
   socket.on('restartGame', (_, cb) => {
