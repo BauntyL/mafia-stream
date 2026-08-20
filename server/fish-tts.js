@@ -29,7 +29,7 @@ export function sanitizeVoiceId(value) {
 }
 
 function ttsModel() {
-  return process.env.FISH_TTS_MODEL || 's2.1-pro';
+  return process.env.FISH_TTS_MODEL || 's2.1-pro-free';
 }
 
 function hashText(text) {
@@ -37,7 +37,7 @@ function hashText(text) {
 }
 
 function cacheKey(voiceId, blockId, text) {
-  return `${voiceId}:${blockId}:${hashText(text)}`;
+  return `${ttsModel()}:${voiceId}:${blockId}:${hashText(text)}`;
 }
 
 function mp3DurationMs(buf) {
@@ -90,6 +90,11 @@ async function synthesize(text, voiceId) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    if (res.status === 402) {
+      throw new Error(
+        'На Fish.audio закончился API-кредит. Нужен бесплатный s2.1-pro-free или пополнение на fish.audio/app/developers',
+      );
+    }
     throw new Error(`Fish.audio ${res.status}: ${body.slice(0, 240) || res.statusText}`);
   }
   return Buffer.from(await res.arrayBuffer());
@@ -126,7 +131,7 @@ async function getClip(voiceId, blockId, text) {
   if (pending) return pending;
 
   const task = (async () => {
-    const fileBase = `${blockId}-${hashText(text)}`;
+    const fileBase = `${ttsModel()}-${blockId}-${hashText(text)}`;
     const fromDisk = await readDisk(voiceId, fileBase);
     if (fromDisk) {
       memory.set(key, fromDisk);
