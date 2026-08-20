@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { Panel, Toggle, Badge } from './ui';
 import { IconClock, IconSkull, IconRobot } from './Icons';
 import { ROLE_EMBLEMS } from './Icons';
+import { NarratorVoicePicker } from './NarratorVoicePicker';
 import type { RoomState, Role } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
 
@@ -71,6 +72,9 @@ export function HostPanel({
               label="Диктор"
               hint="Озвучка сценария. Можно пропустить фразу"
             />
+            {settings.narratorEnabled !== false && (
+              <NarratorVoicePicker room={room} onUpdateSettings={onUpdateSettings} />
+            )}
             <Toggle
               checked={!!settings.peacefulFirstNight}
               onChange={(v) => onUpdateSettings({ peacefulFirstNight: v })}

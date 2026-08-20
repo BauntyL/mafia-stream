@@ -94,9 +94,11 @@ export function HostScript({ room, onAction }: HostScriptProps) {
               type="button"
               onClick={() => {
                 const remaining = narratorLeftMs(room.narratorEndsAt);
-                const total = getNarratorDurationMs(voiceQueue);
+                const voiceId = room.settings.narratorVoiceId || '';
+                const clipMs = room.narratorClipMs;
+                const total = getNarratorDurationMs(voiceQueue, voiceId, clipMs);
                 const offset = remaining > 250 ? Math.max(0, total - remaining) : 0;
-                playNarratorQueue(voiceQueue, sfxVolume, offset);
+                playNarratorQueue(voiceQueue, sfxVolume, offset, { voiceId, clipMs });
               }}
               className="inline-flex items-center gap-1.5 rounded-full border border-brass-500/30
                 bg-brass-500/10 px-2.5 py-[3px] text-[11px] font-medium tracking-[0.04em] text-brass-300

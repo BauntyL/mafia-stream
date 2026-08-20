@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '../store/settings';
 import {
+  clipDurationMs,
   getNarratorDurationMs,
   getNarratorQueue,
   narratorFile,
-  NARRATOR_DURATION_MS,
   type NarratorId,
 } from '../utils/script';
 import type { RoomState } from '../types';
@@ -22,14 +22,21 @@ export function stopNarrator() {
   }
 }
 
-export function playNarratorQueue(ids: NarratorId[], volume: number, offsetMs = 0) {
+export function playNarratorQueue(
+  ids: NarratorId[],
+  volume: number,
+  offsetMs = 0,
+  opts?: { voiceId?: string | null; clipMs?: Partial<Record<string, number>> | null },
+) {
   stopNarrator();
   if (ids.length === 0 || volume <= 0) return;
 
+  const voiceId = opts?.voiceId || '';
+  const clipMs = opts?.clipMs;
   let skipMs = Math.max(0, offsetMs);
   let i = 0;
   while (i < ids.length) {
-    const dur = NARRATOR_DURATION_MS[ids[i]] || 0;
+    const dur = clipDurationMs(ids[i], voiceId, clipMs);
     if (skipMs < dur) break;
     skipMs -= dur;
     i += 1;
@@ -43,7 +50,7 @@ export function playNarratorQueue(ids: NarratorId[], volume: number, offsetMs = 
     const id = ids[i];
     i += 1;
 
-    const audio = new Audio(narratorFile(id));
+    const audio = new Audio(narratorFile(id, voiceId || null));
     audio.preload = 'auto';
     audio.volume = Math.max(0, Math.min(1, volume));
     current = audio;
@@ -95,10 +102,12 @@ export function useNarratorLeft(endsAt?: number | null) {
 /** Играет озвучку диктора, когда на экране открывается новый блок сценария. */
 export function useNarrator(room: RoomState | null) {
   const volume = useSettings((s) => s.sfxVolume);
-  const key = room ? getNarratorQueue(room).join('|') : '';
+  const voiceId = room?.settings?.narratorVoiceId || '';
+  const key = room ? `${voiceId}|${getNarratorQueue(room).join('|')}` : '';
   const endsAt = room?.narratorEndsAt || 0;
   const volumeRef = useRef(volume);
   volumeRef.current = volume;
+  const clipMs = room?.narratorClipMs;
 
   useEffect(() => {
     if (current) current.volume = Math.max(0, Math.min(1, volume));
@@ -109,13 +118,17 @@ export function useNarrator(room: RoomState | null) {
       stopNarrator();
       return;
     }
-    const ids = key.split('|') as NarratorId[];
+    const ids = key.split('|').slice(1).filter(Boolean) as NarratorId[];
+    if (ids.length === 0) {
+      stopNarrator();
+      return;
+    }
     const remaining = narratorLeftMs(endsAt);
     if (endsAt && remaining <= 250) return;
 
-    const total = getNarratorDurationMs(ids);
+    const total = getNarratorDurationMs(ids, voiceId, clipMs);
     const offset = endsAt ? Math.max(0, total - remaining) : 0;
-    playNarratorQueue(ids, volumeRef.current, offset);
+    playNarratorQueue(ids, volumeRef.current, offset, { voiceId, clipMs });
     return () => stopNarrator();
-  }, [key, endsAt, room?.settings?.narratorEnabled]);
+  }, [key, endsAt, room?.settings?.narratorEnabled, voiceId]);
 }

@@ -11,6 +11,7 @@ import {
   MAX_PLAYERS,
 } from './constants.js';
 import { armNarrator, skipNarrator } from './narrator.js';
+import { sanitizeVoiceId } from './fish-tts.js';
 
 const rooms = new Map();
 const CHAT_LIMIT = 150;
@@ -32,12 +33,15 @@ const DEFAULT_SETTINGS = {
   autoAdvanceNight: false,
   chatEnabled: true,
   narratorEnabled: true,
+  narratorVoiceId: '',
+  narratorVoiceTitle: '',
   peacefulFirstNight: false,
   requireNominations: false,
 };
 
 export function applySettings(room, patch) {
   if (!patch || typeof patch !== 'object') return;
+  const prevVoice = room.settings.narratorVoiceId;
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
     if (patch[key] === undefined) continue;
     const def = DEFAULT_SETTINGS[key];
@@ -45,9 +49,18 @@ export function applySettings(room, patch) {
     else if (typeof def === 'number') {
       const n = Number(patch[key]);
       room.settings[key] = Number.isFinite(n) ? n : def;
+    } else if (typeof def === 'string') {
+      room.settings[key] = String(patch[key] ?? '');
     } else {
       room.settings[key] = patch[key];
     }
+  }
+  room.settings.narratorVoiceId = sanitizeVoiceId(room.settings.narratorVoiceId);
+  room.settings.narratorVoiceTitle = String(room.settings.narratorVoiceTitle || '').slice(0, 80);
+  if (!room.settings.narratorVoiceId) room.settings.narratorVoiceTitle = '';
+  if (room.settings.narratorVoiceId !== prevVoice) {
+    room.narratorClipMs = {};
+    room.narratorVoiceError = '';
   }
   if (!room.settings.narratorEnabled) skipNarrator(room);
 }
@@ -155,6 +168,9 @@ export function createRoom(nickname, socketId) {
     speaking: null,
     gameNumber: 0,
     narratorEndsAt: 0,
+    narratorClipMs: {},
+    narratorVoicePreparing: false,
+    narratorVoiceError: '',
   };
   assignSlots(room.players);
   armNarrator(room);
@@ -1068,6 +1084,9 @@ export function serializeRoom(room, viewerId = null, isOverlay = false) {
     gameNumber: room.gameNumber,
     stepReady: isStepComplete(room),
     narratorEndsAt: room.narratorEndsAt || 0,
+    narratorClipMs: room.narratorClipMs || {},
+    narratorVoicePreparing: Boolean(room.narratorVoicePreparing),
+    narratorVoiceError: room.narratorVoiceError || '',
   };
 
   if (room.phase === PHASES.NOMINATING) {

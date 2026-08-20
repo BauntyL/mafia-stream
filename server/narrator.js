@@ -1,3 +1,5 @@
+import { estimateNarratorMs, sanitizeVoiceId } from './fish-tts.js';
+
 /** Длительности voice/*.mp3 в миллисекундах. Смена сцены ждёт сумму текущей очереди. */
 export const NARRATOR_DURATION_MS = {
   lobby: 29727,
@@ -52,8 +54,15 @@ export function narratorQueue(room) {
   return [];
 }
 
+export function clipDurationMs(room, id) {
+  const custom = room.narratorClipMs?.[id];
+  if (custom) return custom;
+  if (sanitizeVoiceId(room.settings?.narratorVoiceId)) return estimateNarratorMs(id);
+  return NARRATOR_DURATION_MS[id] || 0;
+}
+
 export function narratorDurationMs(room) {
-  return narratorQueue(room).reduce((sum, id) => sum + (NARRATOR_DURATION_MS[id] || 0), 0);
+  return narratorQueue(room).reduce((sum, id) => sum + clipDurationMs(room, id), 0);
 }
 
 export function armNarrator(room) {

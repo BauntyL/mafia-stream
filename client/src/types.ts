@@ -62,6 +62,8 @@ export interface GameSettings {
   autoAdvanceNight: boolean;
   chatEnabled: boolean;
   narratorEnabled: boolean;
+  narratorVoiceId: string;
+  narratorVoiceTitle: string;
   peacefulFirstNight: boolean;
   requireNominations: boolean;
 }
@@ -118,6 +120,10 @@ export interface RoomState {
   stepReady: boolean;
   /** Серверное время, когда должна закончиться текущая озвучка */
   narratorEndsAt?: number;
+  /** Реальные длительности клипов Fish.audio, мс */
+  narratorClipMs?: Partial<Record<string, number>>;
+  narratorVoicePreparing?: boolean;
+  narratorVoiceError?: string;
 
   voteTally?: Record<string, number>;
   voteAbstained?: number;

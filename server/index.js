@@ -1,3 +1,4 @@
+import './load-env.js';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -44,6 +45,13 @@ import {
 } from './rooms.js';
 import { runBots } from './bots.js';
 import { isNarratorBusy, narratorLeftMs, skipNarrator } from './narrator.js';
+import {
+  fishConfigured,
+  getNarratorClip,
+  listFishVoices,
+  prepareVoiceClips,
+  sanitizeVoiceId,
+} from './fish-tts.js';
 import {
   LOBBY_HALL,
   setVisitor,
@@ -92,6 +100,30 @@ function emitRoomUpdate(room) {
   });
   io.to(`${code}_overlay`).emit('roomUpdateOverlay', serializeRoom(room, null, true));
   scheduleBots(room);
+}
+
+async function prepareRoomVoice(room) {
+  const voiceId = room.settings.narratorVoiceId;
+  if (!voiceId) {
+    room.narratorVoicePreparing = false;
+    room.narratorVoiceError = '';
+    room.narratorClipMs = {};
+    return;
+  }
+  room.narratorVoicePreparing = true;
+  room.narratorVoiceError = '';
+  emitRoomUpdate(room);
+  try {
+    const { durations } = await prepareVoiceClips(voiceId);
+    if (room.settings.narratorVoiceId !== voiceId) return;
+    room.narratorClipMs = durations;
+    room.narratorVoicePreparing = false;
+    room.narratorVoiceError = '';
+  } catch (err) {
+    if (room.settings.narratorVoiceId !== voiceId) return;
+    room.narratorVoicePreparing = false;
+    room.narratorVoiceError = err.message || 'Не удалось подготовить голос';
+  }
 }
 
 const botTimers = new Map();
@@ -314,8 +346,12 @@ io.on('connection', (socket) => {
   socket.on('updateSettings', ({ settings }, cb) => {
     const { room } = hostCtx();
     if (!room) return done(cb);
+    const prevVoice = room.settings.narratorVoiceId;
     applySettings(room, settings);
     done(cb, room);
+    if (room.settings.narratorVoiceId !== prevVoice) {
+      prepareRoomVoice(room).then(() => emitRoomUpdate(room));
+    }
   });
 
   socket.on('skipNarrator', (_, cb) => {
@@ -533,6 +569,37 @@ io.on('connection', (socket) => {
 
 app.get('/api/health', (_, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/api/narrator/status', (_, res) => {
+  res.json({ configured: fishConfigured() });
+});
+
+app.get('/api/narrator/voices', async (req, res) => {
+  try {
+    const data = await listFishVoices(String(req.query.q || ''));
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ configured: fishConfigured(), items: [], error: err.message });
+  }
+});
+
+app.get('/api/narrator/:voiceId/:blockId', async (req, res) => {
+  const voiceId = sanitizeVoiceId(req.params.voiceId);
+  const blockId = String(req.params.blockId || '').replace(/\.mp3$/i, '');
+  if (!voiceId) {
+    res.status(400).end();
+    return;
+  }
+  try {
+    const clip = await getNarratorClip(voiceId, blockId);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(clip.buf);
+  } catch (err) {
+    const code = /не задан/i.test(err.message) ? 503 : /неизвестный|нужен id/i.test(err.message) ? 404 : 502;
+    res.status(code).json({ error: err.message });
+  }
 });
 
 setInterval(() => cleanupRooms(), 1000 * 60 * 30);

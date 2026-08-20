@@ -54,7 +54,7 @@ export const NARRATOR_BLOCKS: NarratorBlock[] = [
       'За этим столом сегодня решат, кому дожить до утра — а кому исчезнуть без следа.',
       'Проверьте, что вас слышно. Камера — по желанию. Без неё тоже играют: вместо лица будет портрет.',
       'Запомните лица. Запомните голоса. Запомните, кто шутит слишком громко.',
-      'Когда все займут места, я раздам карты.',
+      'Когда каждый займёт место, я раздам карты.',
       'После этого пути назад не будет.',
     ].join('\n'),
   },
@@ -97,7 +97,7 @@ export const NARRATOR_BLOCKS: NarratorBlock[] = [
     title: 'Первая ночь · мафия · 1',
     when: 'Ночь 1, ход мафии. Сразу после него — night-mafia-1-2.',
     text: [
-      'Город засыпает. Все закрывают глаза.',
+      'Город засыпает. Каждый лёг спать.',
       'Никто не шевелится. Никто не подглядывает. Кто откроет глаза без спроса — того город запомнит.',
       'Просыпается мафия.',
       'Мафия, откройте глаза. Посмотрите друг на друга. Запомните своих — днём вы будете врагами, ночью вы одна кровь.',
@@ -120,7 +120,7 @@ export const NARRATOR_BLOCKS: NarratorBlock[] = [
     title: 'Ночь · мафия',
     when: 'Ночь 2 и дальше, ход мафии',
     text: [
-      'Город засыпает. Все закрывают глаза.',
+      'Город засыпает. Каждый лёг спать.',
       'Просыпается мафия.',
       'Мафия, ночь снова ваша. Выберите, кто не доживёт до утра.',
       'Покажите на жертву. Если не сойдётесь — слово за доном.',
@@ -134,7 +134,7 @@ export const NARRATOR_BLOCKS: NarratorBlock[] = [
     title: 'Ночь · дон',
     when: 'Ход дона',
     text: [
-      'Мафия засыпает. Все закрывают глаза.',
+      'Мафия засыпает. Каждый лёг спать.',
       'Просыпается дон.',
       'Дон, ты ищешь шерифа. Одного. За эту ночь — одну проверку.',
       'Покажи на игрока.',
@@ -179,7 +179,7 @@ export const NARRATOR_BLOCKS: NarratorBlock[] = [
     title: 'Ночь кончается',
     when: 'Перед объявлением утра',
     text: [
-      'Все засыпают.',
+      'Каждый лёг спать.',
       'Ночь заканчивает свою работу. Кто-то уже не дышит. Кто-то ещё не знает, что спасён.',
       'Город просыпается. Откройте глаза.',
       'Сейчас вы узнаете, кто не дожил до утра — и дожил ли хоть кто-то.',
@@ -189,14 +189,14 @@ export const NARRATOR_BLOCKS: NarratorBlock[] = [
   {
     id: 'dawn-alive',
     scene: 'dawn-alive',
-    title: 'Утро · все живы',
+    title: 'Утро · город жив',
     when: 'День после спокойной ночи. Сразу после него играется day.',
     text: [
       'Доброе утро, город.',
-      'Этой ночью все остались живы.',
+      'Этой ночью каждый остался жив.',
       'Кто-то из тёмных промахнулся. Или доктор успел вовремя. Или город ещё не заслужил крови.',
       'Не расслабляйтесь. Спокойная ночь — тоже улика.',
-      'Кто-то из вас знает, почему все живы. Остальные могут только гадать. Гадайте вслух.',
+      'Кто-то из вас знает, почему город ещё жив. Остальные могут только гадать. Гадайте вслух.',
     ].join('\n'),
   },
   {
@@ -284,8 +284,22 @@ const BLOCK_MAP = Object.fromEntries(NARRATOR_BLOCKS.map((b) => [b.id, b])) as R
   NarratorBlock
 >;
 
-export function narratorFile(id: NarratorId) {
+export function narratorFile(id: NarratorId, voiceId?: string | null) {
+  if (voiceId) return `/api/narrator/${encodeURIComponent(voiceId)}/${id}.mp3`;
   return `/audio/narrator/${id}.mp3`;
+}
+
+export function clipDurationMs(
+  id: NarratorId,
+  voiceId?: string | null,
+  clipMs?: Partial<Record<string, number>> | null,
+) {
+  if (clipMs?.[id]) return clipMs[id] || 0;
+  if (voiceId) {
+    const text = BLOCK_MAP[id]?.text || '';
+    return Math.round([...text].length * 85 + 1200);
+  }
+  return NARRATOR_DURATION_MS[id] || 0;
 }
 
 /** Длительности файлов из voice/, мс. Должны совпадать с server/narrator.js */
@@ -310,8 +324,12 @@ export const NARRATOR_DURATION_MS: Record<NarratorId, number> = {
   'end-mafia': 21002,
 };
 
-export function getNarratorDurationMs(ids: NarratorId[]) {
-  return ids.reduce((sum, id) => sum + (NARRATOR_DURATION_MS[id] || 0), 0);
+export function getNarratorDurationMs(
+  ids: NarratorId[],
+  voiceId?: string | null,
+  clipMs?: Partial<Record<string, number>> | null,
+) {
+  return ids.reduce((sum, id) => sum + clipDurationMs(id, voiceId, clipMs), 0);
 }
 
 export function narratorCharCount(text: string) {
