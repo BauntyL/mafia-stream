@@ -11,10 +11,9 @@ import { AuthorMark } from '../components/AuthorMark';
 import { NightKillCutscene, useNightKillCutscene } from '../components/NightKillCutscene';
 import { Chat } from '../components/Chat';
 import { GameLog, CheckHistory } from '../components/GameLog';
-import { RulesPanel } from '../components/RulesPanel';
 import { TimerBar } from '../components/Timer';
 import { Button, IconButton } from '../components/Button';
-import { Panel, Badge, CopyRow } from '../components/ui';
+import { Panel, Badge } from '../components/ui';
 import {
   IconGear,
   IconArrowLeft,
@@ -648,6 +647,16 @@ export function GamePage() {
                             Ведущий
                           </Button>
                         )}
+                        {isHost && (
+                          <button
+                            type="button"
+                            title="Убрать из лобби"
+                            onClick={() => emit('kickPlayer', { playerId: p.id })}
+                            className="rounded p-1 text-bone-700 transition-colors hover:text-blood-300"
+                          >
+                            <IconBan size={14} />
+                          </button>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -876,7 +885,13 @@ export function GamePage() {
           </div>
 
           {/* ── Боковая колонка ── */}
-          <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden">
+          <aside
+            className={
+              inLobby
+                ? 'flex min-w-0 flex-col gap-3'
+                : 'flex min-w-0 flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden'
+            }
+          >
             {room.settings.chatEnabled && (
               <Chat
                 room={room}
@@ -884,13 +899,13 @@ export function GamePage() {
                 onSend={sendChat}
                 className={
                   inLobby
-                    ? 'h-[300px] shrink-0 lg:h-auto lg:min-h-0 lg:flex-[1.15]'
+                    ? 'h-[280px] shrink-0'
                     : 'hidden min-h-0 flex-[1.15] lg:flex'
                 }
               />
             )}
 
-            <div className="min-h-0 space-y-4 overflow-y-auto lg:flex-1">
+            <div className={inLobby ? 'space-y-4' : 'min-h-0 space-y-4 overflow-y-auto lg:flex-1'}>
             {isHost && (
               <HostPanel
                 room={room}
@@ -899,7 +914,6 @@ export function GamePage() {
                   emit('hostTimer', { action, seconds, label })
                 }
                 onForceKill={(id) => emit('hostForceKill', { playerId: id })}
-                onKick={(id) => emit('kickPlayer', { playerId: id })}
                 onAddBot={async () => {
                   const res = await emit<{ success: boolean; error?: string }>('addBot');
                   if (res?.error) showNotice(res.error);
@@ -946,36 +960,6 @@ export function GamePage() {
             )}
 
             {!isHost && you && you.checks.length > 0 && <CheckHistory checks={you.checks} />}
-
-            {isHost && inLobby && (
-              <Panel title="Экран для OBS">
-                <p className="mb-3 text-[13px] leading-relaxed text-bone-600">
-                  Добавьте в OBS источник «Браузер» размером 1920 × 1080 и вставьте эту ссылку.
-                </p>
-                <CopyRow value={overlayUrl} onCopy={copyOverlay} copied={copiedOverlay} />
-              </Panel>
-            )}
-
-            {inLobby && <RulesPanel includeDoctor={room.settings.includeDoctor} />}
-
-            {!isHost && inLobby && (
-              <Panel title="Как начать">
-                <ol className="space-y-3 text-[13px] leading-relaxed text-bone-600">
-                  {[
-                    'Включите камеру ниже — или играйте без неё, вам дадут аватар',
-                    'Нажмите «Я готов»',
-                    'Ведущий раздаст роли и начнёт партию',
-                  ].map((step, i) => (
-                    <li key={step} className="flex gap-3">
-                      <span className="font-mono text-[11px] tnum text-bone-700">
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </Panel>
-            )}
 
             {!inLobby && <GameLog entries={room.log} />}
             </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from './Button';
-import { Panel, Toggle, Badge, Modal } from './ui';
-import { IconClock, IconSkull, IconBan, IconRobot, IconGear } from './Icons';
+import { Panel, Toggle, Badge } from './ui';
+import { IconClock, IconSkull, IconRobot } from './Icons';
 import { ROLE_EMBLEMS } from './Icons';
 import type { RoomState, Role } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
@@ -11,7 +11,6 @@ interface HostPanelProps {
   onUpdateSettings: (settings: Partial<RoomState['settings']>) => void;
   onTimer: (action: 'start' | 'stop', seconds?: number, label?: string) => void;
   onForceKill: (playerId: string) => void;
-  onKick: (playerId: string) => void;
   onAddBot: () => void;
   onRemoveBots: () => void;
 }
@@ -23,13 +22,11 @@ export function HostPanel({
   onUpdateSettings,
   onTimer,
   onForceKill,
-  onKick,
   onAddBot,
   onRemoveBots,
 }: HostPanelProps) {
   const { phase, gamePlayerCount, settings } = room;
   const [confirmKill, setConfirmKill] = useState<string | null>(null);
-  const [lobbySettingsOpen, setLobbySettingsOpen] = useState(false);
   const botCount = room.players.filter((p) => p.isBot).length;
   const tablePlayers = room.players
     .filter((p) => !p.isHost)
@@ -41,25 +38,15 @@ export function HostPanel({
 
   const mafiaPickIds = new Set(Object.values(picks?.mafia || {}).filter(Boolean));
 
-  const settingHints = [
-    settings.includeDoctor ? 'доктор' : null,
-    settings.chatEnabled ? 'чат' : null,
-    settings.narratorEnabled !== false ? 'диктор' : null,
-    settings.peacefulFirstNight ? 'тихая ночь' : null,
-    settings.requireNominations ? 'выставление' : null,
-  ].filter(Boolean);
-
   return (
     <div className="space-y-4">
-      {phase === 'lobby' && (
-        <Modal
-          open={lobbySettingsOpen}
-          onClose={() => setLobbySettingsOpen(false)}
-          title="Настройки стола"
-          subtitle="Действуют с начала партии"
-          width="max-w-[460px]"
-        >
-          <div className="max-h-[min(68vh,560px)] space-y-4 overflow-y-auto pr-1">
+      <Panel
+        title={phase === 'lobby' ? 'Настройки стола' : 'Управление'}
+        accent="brass"
+        action={phase !== 'lobby' ? <Badge tone="brass">{gamePlayerCount} за столом</Badge> : undefined}
+      >
+        {phase === 'lobby' ? (
+          <div className="space-y-3.5">
             <Toggle
               checked={settings.includeDoctor}
               onChange={(v) => onUpdateSettings({ includeDoctor: v })}
@@ -82,19 +69,19 @@ export function HostPanel({
               checked={settings.narratorEnabled !== false}
               onChange={(v) => onUpdateSettings({ narratorEnabled: v })}
               label="Диктор"
-              hint="Озвучка сценария за столом. Можно выключить или пропускать по фразе"
+              hint="Озвучка сценария. Можно пропустить фразу"
             />
             <Toggle
               checked={!!settings.peacefulFirstNight}
               onChange={(v) => onUpdateSettings({ peacefulFirstNight: v })}
               label="Первая ночь без убийства"
-              hint="Мафия знакомится, выстрела нет. Дон, шериф и доктор ходят как обычно"
+              hint="Мафия только знакомится, выстрела нет"
             />
             <Toggle
               checked={!!settings.requireNominations}
               onChange={(v) => onUpdateSettings({ requireNominations: v })}
               label="Выставление перед голосованием"
-              hint="На голосование попадают только выставленные. Если никого — сразу ночь"
+              hint="Голосуют только за выставленных"
             />
             <Toggle
               checked={settings.autoAdvanceNight}
@@ -116,7 +103,7 @@ export function HostPanel({
                 <span>
                   <span className="block text-sm text-bone-200">Боты для теста</span>
                   <span className="mt-0.5 block text-xs text-bone-700">
-                    Ходят и голосуют сами — можно проверить партию в одиночку
+                    Ходят сами — партия в одиночку
                   </span>
                 </span>
                 {botCount > 0 && <Badge>{botCount}</Badge>}
@@ -139,31 +126,6 @@ export function HostPanel({
                 )}
               </div>
             </div>
-          </div>
-        </Modal>
-      )}
-
-      <Panel
-        title={phase === 'lobby' ? 'Стол' : 'Управление'}
-        accent="brass"
-        action={<Badge tone="brass">{gamePlayerCount} за столом</Badge>}
-      >
-        {phase === 'lobby' ? (
-          <div className="space-y-3">
-            <Button
-              onClick={() => setLobbySettingsOpen(true)}
-              variant="secondary"
-              className="w-full"
-              icon={<IconGear size={16} />}
-            >
-              Настройки стола
-            </Button>
-            {settingHints.length > 0 && (
-              <p className="text-center text-[12px] leading-relaxed text-bone-700">
-                {settingHints.join(' · ')}
-                {botCount > 0 ? ` · ботов: ${botCount}` : ''}
-              </p>
-            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -192,8 +154,9 @@ export function HostPanel({
         )}
       </Panel>
 
+      {phase !== 'lobby' && (
       <Panel
-        title={phase === 'lobby' ? 'Игроки' : 'Роли — видно только вам'}
+        title="Роли — видно только вам"
         action={
           phase === 'voting' ? (
             <Badge tone="blood">{room.votedCount ?? 0}/{room.voterCount ?? 0}</Badge>
@@ -256,15 +219,7 @@ export function HostPanel({
                         <span style={{ color: `${ROLE_COLORS[role]}cc` }}>{ROLE_LABELS[role]}</span>
                       </span>
                     )}
-                    {phase === 'lobby' ? (
-                      <button
-                        onClick={() => onKick(p.id)}
-                        title="Убрать из лобби"
-                        className="rounded p-1 text-bone-700 transition-colors hover:text-blood-300"
-                      >
-                        <IconBan size={13} />
-                      </button>
-                    ) : p.alive ? (
+                    {p.alive ? (
                       <button
                         onClick={() =>
                           confirmKill === p.id
@@ -313,6 +268,7 @@ export function HostPanel({
           </div>
         )}
       </Panel>
+      )}
     </div>
   );
 }
