@@ -40,6 +40,13 @@ import {
 } from './rooms.js';
 import { runBots } from './bots.js';
 import { isNarratorBusy, narratorLeftMs } from './narrator.js';
+import {
+  LOBBY_HALL,
+  setVisitor,
+  removeVisitor,
+  addLobbyChat,
+  lobbySnapshot,
+} from './lobby.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -58,6 +65,10 @@ function narratorWait(room, cb) {
   if (!isNarratorBusy(room)) return false;
   cb?.({ success: false, error: 'Дождитесь, пока диктор закончит' });
   return true;
+}
+
+function emitLobby() {
+  io.to(LOBBY_HALL).emit('lobbyState', lobbySnapshot());
 }
 
 /** Подтверждаем каждое событие: иначе промис на клиенте не разрешится никогда. */
@@ -131,8 +142,11 @@ io.on('connection', (socket) => {
     currentRoom = room.code;
     currentPlayerId = player.id;
     socket.join(room.code);
+    socket.leave(LOBBY_HALL);
+    setVisitor(socket.id, name, 'table');
     cb?.({ success: true, room: serializeRoom(room, player.id), playerId: player.id });
     emitRoomUpdate(room);
+    emitLobby();
   });
 
   socket.on('joinRoom', ({ code, nickname }, cb) => {
@@ -145,8 +159,11 @@ io.on('connection', (socket) => {
     currentRoom = room.code;
     currentPlayerId = player.id;
     socket.join(room.code);
+    socket.leave(LOBBY_HALL);
+    setVisitor(socket.id, player.nickname, 'table');
     cb?.({ success: true, room: serializeRoom(room, player.id), playerId: player.id });
     emitRoomUpdate(room);
+    emitLobby();
   });
 
   socket.on('reconnect', ({ code, playerId }, cb) => {
@@ -159,8 +176,11 @@ io.on('connection', (socket) => {
     currentRoom = room.code;
     currentPlayerId = player.id;
     socket.join(room.code);
+    socket.leave(LOBBY_HALL);
+    setVisitor(socket.id, player.nickname, 'table');
     cb?.({ success: true, room: serializeRoom(room, player.id), playerId: player.id });
     emitRoomUpdate(room);
+    emitLobby();
   });
 
   socket.on('joinOverlay', ({ code }) => {
@@ -169,6 +189,28 @@ io.on('connection', (socket) => {
     socket.data.overlayCode = key;
     const room = getRoom(key);
     if (room) socket.emit('roomUpdateOverlay', serializeRoom(room, null, true));
+  });
+
+  socket.on('hello', ({ nickname, where }, cb) => {
+    const result = setVisitor(socket.id, nickname, where);
+    if (result.error) {
+      cb?.({ success: false, error: result.error });
+      return;
+    }
+    if (where === 'table') socket.leave(LOBBY_HALL);
+    else socket.join(LOBBY_HALL);
+    cb?.({ success: true, lobby: lobbySnapshot() });
+    emitLobby();
+  });
+
+  socket.on('lobbyChat', ({ text }, cb) => {
+    const result = addLobbyChat(socket.id, text);
+    if (result.error) {
+      cb?.({ success: false, error: result.error });
+      return;
+    }
+    emitLobby();
+    cb?.({ success: true });
   });
 
   /* ── Лобби ─────────────────────────────────────────────── */
@@ -450,7 +492,9 @@ io.on('connection', (socket) => {
       });
     }
     const room = removePlayer(socket.id);
+    removeVisitor(socket.id);
     if (room) emitRoomUpdate(room);
+    emitLobby();
   });
 });
 

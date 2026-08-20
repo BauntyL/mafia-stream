@@ -33,6 +33,7 @@ import {
 } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
+import { useLobby } from '../hooks/useLobby';
 import { useCameraPublisher } from '../hooks/useCameraPublisher';
 import { useNarrator } from '../hooks/useNarrator';
 import { stopCamera } from '../webrtc/session';
@@ -227,6 +228,8 @@ export function GamePage() {
   const me = room?.players.find((p) => p.id === playerId);
   const isHost = me?.isHost || false;
   const myRole = me?.role as Role | undefined;
+
+  useLobby(nickname, 'table');
 
   useEffect(() => {
     if (!nickname || !code) {

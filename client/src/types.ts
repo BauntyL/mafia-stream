@@ -201,3 +201,21 @@ export const CHECK_LABELS: Record<string, string> = {
   sheriff: 'шериф',
   not_sheriff: 'не шериф',
 };
+
+export interface LobbyPerson {
+  nickname: string;
+  where: 'hall' | 'table';
+}
+
+export interface LobbyChatMessage {
+  id: string;
+  at: number;
+  authorName: string;
+  text: string;
+}
+
+export interface LobbyState {
+  online: LobbyPerson[];
+  count: number;
+  chat: LobbyChatMessage[];
+}

@@ -3,18 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { NicknameModal } from '../components/NicknameModal';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { LobbyHall } from '../components/LobbyHall';
 import { Button, IconButton } from '../components/Button';
 import { Input } from '../components/ui';
 import { AuthorMark } from '../components/AuthorMark';
 import { IconGear, IconSpinner, Ornament } from '../components/Icons';
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
+import { useLobby } from '../hooks/useLobby';
 import { useSound, useMenuMusic } from '../hooks/useSound';
 
 export function HomePage() {
   const navigate = useNavigate();
   const { nickname, setPlayer } = usePlayerStore();
   const { emit } = useSocket();
+  const { lobby, send } = useLobby(nickname, 'hall');
   const sound = useSound();
   useMenuMusic('home');
 
@@ -78,7 +81,7 @@ export function HomePage() {
         </IconButton>
       </header>
 
-      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-160px)] max-w-[560px] flex-col items-center justify-center px-6 pb-16">
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-160px)] max-w-[960px] flex-col items-center justify-center px-6 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -113,7 +116,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25, duration: 0.7 }}
-            className="mt-11 w-full"
+            className="mt-11 grid w-full gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1.05fr)] lg:items-start"
           >
             <div className="panel p-6">
               <div className="mb-5 flex items-baseline justify-between">
@@ -167,6 +170,8 @@ export function HomePage() {
 
               {error && <p className="mt-3 text-center text-[13px] text-blood-300">{error}</p>}
             </div>
+
+            {nickname && <LobbyHall lobby={lobby} me={nickname} onSend={send} />}
           </motion.div>
         )}
       </main>
