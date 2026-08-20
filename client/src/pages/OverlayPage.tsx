@@ -231,7 +231,9 @@ export function OverlayPage() {
       ? `Ночь ${room.dayNumber}`
       : room?.phase === 'day'
         ? `День ${room.dayNumber}`
-        : room?.phase === 'voting'
+        : room?.phase === 'nominating'
+          ? 'Выставление'
+          : room?.phase === 'voting'
           ? room.revoteRound > 0
             ? 'Переголосовка'
             : 'Голосование'
@@ -250,7 +252,7 @@ export function OverlayPage() {
           background:
             room?.phase === 'night'
               ? 'radial-gradient(75% 55% at 50% 0%, rgba(91,114,144,0.16) 0%, transparent 62%)'
-              : room?.phase === 'voting'
+              : room?.phase === 'voting' || room?.phase === 'nominating'
                 ? 'radial-gradient(75% 55% at 50% 0%, rgba(184,50,61,0.18) 0%, transparent 62%)'
                 : 'radial-gradient(75% 55% at 50% 0%, rgba(207,174,82,0.10) 0%, transparent 62%)',
           transition: 'background 1.6s ease',
@@ -308,7 +310,11 @@ export function OverlayPage() {
               <Slot
                 key={player.id}
                 player={player}
-                votes={room?.voteTally?.[player.id] || 0}
+                votes={
+                  room?.phase === 'nominating'
+                    ? room.nominationTally?.[player.id] || 0
+                    : room?.voteTally?.[player.id] || 0
+                }
                 speaking={room?.speaking?.playerId === player.id}
                 stream={streams[player.id] || null}
               />

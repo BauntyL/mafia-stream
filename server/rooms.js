@@ -10,7 +10,7 @@ import {
   MIN_PLAYERS,
   MAX_PLAYERS,
 } from './constants.js';
-import { armNarrator } from './narrator.js';
+import { armNarrator, skipNarrator } from './narrator.js';
 
 const rooms = new Map();
 const CHAT_LIMIT = 150;
@@ -31,7 +31,30 @@ const DEFAULT_SETTINGS = {
   revealRoleOnDeath: true,
   autoAdvanceNight: false,
   chatEnabled: true,
+  narratorEnabled: true,
+  peacefulFirstNight: false,
+  requireNominations: false,
 };
+
+export function applySettings(room, patch) {
+  if (!patch || typeof patch !== 'object') return;
+  for (const key of Object.keys(DEFAULT_SETTINGS)) {
+    if (patch[key] === undefined) continue;
+    const def = DEFAULT_SETTINGS[key];
+    if (typeof def === 'boolean') room.settings[key] = Boolean(patch[key]);
+    else if (typeof def === 'number') {
+      const n = Number(patch[key]);
+      room.settings[key] = Number.isFinite(n) ? n : def;
+    } else {
+      room.settings[key] = patch[key];
+    }
+  }
+  if (!room.settings.narratorEnabled) skipNarrator(room);
+}
+
+function isPeacefulMafiaNight(room) {
+  return Boolean(room.settings.peacefulFirstNight && room.dayNumber === 1);
+}
 
 const BOT_NAMES = [
   'Лука',
@@ -118,6 +141,7 @@ export function createRoom(nickname, socketId) {
     nightActions: {},
     actedThisStep: {},
     votes: {},
+    nominations: {},
     voteCandidates: null,
     revoteRound: 0,
     lastNightResult: null,
@@ -300,6 +324,7 @@ export function startGame(room) {
   room.nightActions = {};
   room.actedThisStep = {};
   room.votes = {};
+  room.nominations = {};
   room.voteCandidates = null;
   room.revoteRound = 0;
   room.lastNightResult = null;
@@ -338,6 +363,7 @@ export function restartGame(room) {
   room.nightActions = {};
   room.actedThisStep = {};
   room.votes = {};
+  room.nominations = {};
   room.voteCandidates = null;
   room.revoteRound = 0;
   room.lastNightResult = null;
@@ -395,6 +421,7 @@ export function startNight(room) {
   room.actedThisStep = {};
   room.lastNightResult = null;
   room.votes = {};
+  room.nominations = {};
   room.voteCandidates = null;
   room.revoteRound = 0;
   room.timer = null;
@@ -461,6 +488,9 @@ export function submitNightAction(room, playerId, targetId) {
   if (!target.alive) return { error: 'Этот игрок уже выбыл' };
 
   if (sub === NIGHT_SUBPHASES.MAFIA) {
+    if (isPeacefulMafiaNight(room)) {
+      return { error: 'Первая ночь без выстрела. Познакомьтесь и подтвердите.' };
+    }
     if (isMafiaTeam(target.role)) return { error: 'Нельзя стрелять в своего' };
     room.nightActions.mafiaVotes = room.nightActions.mafiaVotes || {};
     room.nightActions.mafiaVotes[playerId] = targetId;
@@ -537,6 +567,9 @@ export function isStepComplete(room) {
     const actors = getStepActors(room);
     return actors.every((p) => room.actedThisStep[p.id]);
   }
+  if (room.phase === PHASES.NOMINATING) {
+    return getVoters(room).every((p) => room.nominations[p.id]);
+  }
   if (room.phase === PHASES.VOTING) {
     return getVoters(room).every((p) => room.votes[p.id]);
   }
@@ -558,6 +591,11 @@ function getStepStatus(room) {
     total = actors.length;
     done = actors.filter((p) => room.actedThisStep[p.id]).length;
     waiting = actors.filter((p) => !room.actedThisStep[p.id]).map((p) => p.nickname);
+  } else if (room.phase === PHASES.NOMINATING) {
+    const voters = getVoters(room);
+    total = voters.length;
+    done = voters.filter((p) => room.nominations[p.id]).length;
+    waiting = voters.filter((p) => !room.nominations[p.id]).map((p) => p.nickname);
   } else if (room.phase === PHASES.VOTING) {
     const voters = getVoters(room);
     total = voters.length;
@@ -600,7 +638,7 @@ export function resolveNight(room) {
   let killed = null;
   let saved = false;
 
-  if (mafiaTarget) {
+  if (mafiaTarget && !isPeacefulMafiaNight(room)) {
     if (mafiaTarget === doctorTarget) {
       saved = true;
     } else {
@@ -627,6 +665,9 @@ export function resolveNight(room) {
   if (killed) {
     pushLog(room, `Ночью убит ${killed.nickname} (№${killed.slot})`, 'blood');
     systemChat(room, `Ночью убит ${killed.nickname}. Город просыпается.`);
+  } else if (isPeacefulMafiaNight(room)) {
+    pushLog(room, 'Первая ночь без выстрела', 'sage');
+    systemChat(room, 'Первая ночь прошла без выстрела. Все живы.');
   } else if (saved) {
     pushLog(room, 'Доктор успел вовремя — все живы', 'sage');
     systemChat(room, 'Ночь прошла спокойно. Все живы.');
@@ -699,10 +740,71 @@ export function getVoteCandidates(room) {
   return alive.filter((p) => room.voteCandidates.includes(p.id));
 }
 
-export function startVoting(room) {
-  room.phase = PHASES.VOTING;
+export function startNominations(room) {
+  room.phase = PHASES.NOMINATING;
+  room.nominations = {};
   room.votes = {};
   room.voteCandidates = null;
+  room.revoteRound = 0;
+  room.speaking = null;
+  stopTimer(room);
+  pushLog(room, 'Выставление кандидатов', 'brass');
+  systemChat(room, 'Выставляйте игроков на голосование.');
+}
+
+export function nominatedIds(room) {
+  const alive = new Set(
+    room.players.filter((p) => !p.isHost && p.alive).map((p) => p.id),
+  );
+  return [...new Set(Object.values(room.nominations || {}).filter((id) => id && id !== SKIP && alive.has(id)))];
+}
+
+export function submitNomination(room, voterId, targetId) {
+  if (room.phase !== PHASES.NOMINATING) return { error: 'Сейчас не выставление' };
+  const voter = room.players.find((p) => p.id === voterId);
+  if (!voter || voter.isHost) return { error: 'Ведущий не выставляет' };
+  if (!voter.alive) return { error: 'Выбывшие не выставляют' };
+  if (room.nominations[voterId]) return { error: 'Вы уже выставили кандидата' };
+
+  if (!targetId || targetId === SKIP) {
+    room.nominations[voterId] = SKIP;
+    return { success: true, skipped: true };
+  }
+
+  const target = room.players.find((p) => p.id === targetId);
+  if (!target || target.isHost || !target.alive) return { error: 'Этого игрока нельзя выставить' };
+  if (targetId === voterId) return { error: 'Нельзя выставить себя' };
+
+  room.nominations[voterId] = targetId;
+  return { success: true };
+}
+
+export function closeNominations(room) {
+  const candidates = nominatedIds(room);
+  if (candidates.length === 0) {
+    room.lastVoteResult = {
+      exiledId: null,
+      exiledName: null,
+      exiledRole: null,
+      tie: false,
+      revote: false,
+      voteCounts: {},
+      breakdown: [],
+    };
+    pushLog(room, 'Никто не выставлен — голосования не будет', 'neutral');
+    systemChat(room, 'Никто не выставлен. Город засыпает.');
+    startNight(room);
+    return { skipped: true };
+  }
+  room.voteCandidates = candidates;
+  startVoting(room, { keepCandidates: true });
+  return { skipped: false, count: candidates.length };
+}
+
+export function startVoting(room, { keepCandidates = false } = {}) {
+  room.phase = PHASES.VOTING;
+  room.votes = {};
+  if (!keepCandidates) room.voteCandidates = null;
   room.revoteRound = 0;
   room.speaking = null;
   stopTimer(room);
@@ -961,11 +1063,26 @@ export function serializeRoom(room, viewerId = null, isOverlay = false) {
     log: room.log,
     chat: visibleChat(room, viewer, isOverlay),
     voteCandidateIds: room.voteCandidates,
+    nominatedIds: nominatedIds(room),
     revoteRound: room.revoteRound,
     gameNumber: room.gameNumber,
     stepReady: isStepComplete(room),
     narratorEndsAt: room.narratorEndsAt || 0,
   };
+
+  if (room.phase === PHASES.NOMINATING) {
+    const tally = {};
+    let skipped = 0;
+    Object.values(room.nominations || {}).forEach((id) => {
+      if (id === SKIP) skipped += 1;
+      else if (id) tally[id] = (tally[id] || 0) + 1;
+    });
+    state.nominationTally = tally;
+    state.nominationSkipped = skipped;
+    state.nominatedCount = Object.keys(tally).length;
+    state.votedCount = Object.keys(room.nominations || {}).length;
+    state.voterCount = getVoters(room).length;
+  }
 
   // Живой подсчёт голосов виден всем — это часть шоу
   if (room.phase === PHASES.VOTING) {
@@ -1008,6 +1125,12 @@ export function serializeRoom(room, viewerId = null, isOverlay = false) {
       voteTargetId:
         room.votes[viewer.id] && room.votes[viewer.id] !== SKIP ? room.votes[viewer.id] : null,
       voteSkipped: room.votes[viewer.id] === SKIP,
+      nominationLocked: !!room.nominations?.[viewer.id],
+      nominationTargetId:
+        room.nominations?.[viewer.id] && room.nominations[viewer.id] !== SKIP
+          ? room.nominations[viewer.id]
+          : null,
+      nominationSkipped: room.nominations?.[viewer.id] === SKIP,
       checks: room.checks[viewer.id] || [],
       selfHealUsed: viewer.selfHealUsed,
       canSelfHeal: !viewer.selfHealUsed,

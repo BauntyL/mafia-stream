@@ -20,6 +20,7 @@ export const PHASES = {
   NIGHT: 'night',
   DAY: 'day',
   VOTING: 'voting',
+  NOMINATING: 'nominating',
   ENDED: 'ended',
 };
 
@@ -115,6 +116,7 @@ export function getPhaseHint(phase, nightSubPhase, role) {
     return 'Ночь заканчивается...';
   }
   if (phase === PHASES.DAY) return 'Обсуждайте и ищите мафию';
+  if (phase === PHASES.NOMINATING) return 'Выставьте игрока на голосование';
   if (phase === PHASES.VOTING) return 'Голосуйте, кого изгнать';
   if (phase === PHASES.ENDED) return 'Игра окончена';
   return '';

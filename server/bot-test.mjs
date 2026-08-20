@@ -39,6 +39,9 @@ const run = async () => {
 
   for (let i = 0; i < 8; i++) await emit('addBot');
   await wait(300);
+  await emit('updateSettings', {
+    settings: { narratorEnabled: false, peacefulFirstNight: false, requireNominations: false },
+  });
   console.log(`За столом ботов: ${room.gamePlayerCount}`);
 
   await emit('startGame');
@@ -64,6 +67,9 @@ const run = async () => {
         await emit('hostAdvanceNight');
       }
     } else if (room.phase === 'day') {
+      await emit('hostStartVoting');
+    } else if (room.phase === 'nominating') {
+      if (!(await waitReady('выставление'))) process.exit(1);
       await emit('hostStartVoting');
     } else if (room.phase === 'voting') {
       if (!(await waitReady('голосование'))) process.exit(1);

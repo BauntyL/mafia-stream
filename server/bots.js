@@ -4,6 +4,7 @@ import {
   getVoteCandidates,
   submitNightAction,
   submitVote,
+  submitNomination,
   markRoleSeen,
   addChatMessage,
 } from './rooms.js';
@@ -54,10 +55,28 @@ function nightCandidates(room, bot) {
 }
 
 function actAtNight(room, bot) {
+  if (
+    room.nightSubPhase === NIGHT_SUBPHASES.MAFIA &&
+    room.settings.peacefulFirstNight &&
+    room.dayNumber === 1
+  ) {
+    return !submitNightAction(room, bot.id, null).error;
+  }
   for (const target of shuffle(nightCandidates(room, bot))) {
     if (!submitNightAction(room, bot.id, target.id).error) return true;
   }
   return !submitNightAction(room, bot.id, null).error;
+}
+
+function actAtNominating(room, bot) {
+  const others = room.players.filter((p) => !p.isHost && p.alive && p.id !== bot.id);
+  const pool = isMafiaTeam(bot.role)
+    ? others.filter((p) => !isMafiaTeam(p.role))
+    : others;
+  for (const target of shuffle(pool.length ? pool : others)) {
+    if (!submitNomination(room, bot.id, target.id).error) return true;
+  }
+  return !submitNomination(room, bot.id, null).error;
 }
 
 function actAtVoting(room, bot) {
@@ -104,6 +123,11 @@ export function runBots(room) {
   if (room.phase === PHASES.NIGHT) {
     const actor = getStepActors(room).find((p) => p.isBot && !room.actedThisStep[p.id]);
     return actor ? actAtNight(room, actor) : false;
+  }
+
+  if (room.phase === PHASES.NOMINATING) {
+    const nominator = bots.find((p) => p.alive && !room.nominations?.[p.id]);
+    return nominator ? actAtNominating(room, nominator) : false;
   }
 
   if (room.phase === PHASES.VOTING) {

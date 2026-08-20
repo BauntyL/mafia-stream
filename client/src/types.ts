@@ -1,6 +1,6 @@
 export type Role = 'civilian' | 'mafia' | 'don' | 'sheriff' | 'doctor';
 
-export type Phase = 'lobby' | 'roleReveal' | 'night' | 'day' | 'voting' | 'ended';
+export type Phase = 'lobby' | 'roleReveal' | 'night' | 'day' | 'nominating' | 'voting' | 'ended';
 
 export type NightSubPhase = 'mafia' | 'don' | 'sheriff' | 'doctor' | 'resolve' | null;
 
@@ -61,6 +61,9 @@ export interface GameSettings {
   revealRoleOnDeath: boolean;
   autoAdvanceNight: boolean;
   chatEnabled: boolean;
+  narratorEnabled: boolean;
+  peacefulFirstNight: boolean;
+  requireNominations: boolean;
 }
 
 export interface RoomState {
@@ -106,6 +109,10 @@ export interface RoomState {
   log: LogEntry[];
   chat: ChatMessage[];
   voteCandidateIds: string[] | null;
+  nominatedIds?: string[];
+  nominatedCount?: number;
+  nominationTally?: Record<string, number>;
+  nominationSkipped?: number;
   revoteRound: number;
   gameNumber: number;
   stepReady: boolean;
@@ -139,6 +146,9 @@ export interface RoomState {
     voteLocked: boolean;
     voteTargetId: string | null;
     voteSkipped: boolean;
+    nominationLocked?: boolean;
+    nominationTargetId?: string | null;
+    nominationSkipped?: boolean;
     checks: CheckRecord[];
     selfHealUsed: boolean;
     canSelfHeal: boolean;
@@ -183,6 +193,7 @@ export const PHASE_LABELS: Record<Phase, string> = {
   roleReveal: 'Раздача ролей',
   night: 'Ночь',
   day: 'День',
+  nominating: 'Выставление',
   voting: 'Голосование',
   ended: 'Конец игры',
 };

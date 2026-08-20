@@ -7,6 +7,7 @@ export type ScriptActionKey =
   | 'resolveNight'
   | 'nextSpeaker'
   | 'startVoting'
+  | 'skipNarrator'
   | 'resolveVoting'
   | 'restart';
 
@@ -322,6 +323,12 @@ export function getSceneQueue(scene: NarratorScene): NarratorId[] {
 }
 
 export function getNarratorQueue(room: RoomState): NarratorId[] {
+  if (room.settings?.narratorEnabled === false) return [];
+
+  if (room.phase === 'night' && room.nightSubPhase === 'mafia' && room.dayNumber <= 1 && room.settings.peacefulFirstNight) {
+    return ['night-mafia-1'];
+  }
+
   if (room.phase === 'day') {
     const dawn: NarratorScene =
       room.lastNightResult && !room.lastNightResult.peaceful ? 'dawn-dead' : 'dawn-alive';
@@ -430,6 +437,19 @@ export function getHostScript(room: RoomState): ScriptStep {
 
     if (nightSubPhase === 'mafia') {
       const first = dayNumber <= 1;
+      const peaceful = first && room.settings.peacefulFirstNight;
+      if (peaceful) {
+        return {
+          id: 'night-mafia-1',
+          voiceId: 'night-mafia-1',
+          eyebrow: `${eyebrow} · Мафия`,
+          title: 'Первая ночь. Мафия знакомится',
+          lines: BLOCK_MAP['night-mafia-1'].text.split('\n'),
+          note: 'Выстрела нет. Пусть посмотрят друг на друга и закроют глаза.',
+          action: { key: 'advanceNight', label: 'Мафия засыпает', tone: 'secondary' },
+          waitLabel: 'Ждём, пока мафия познакомится',
+        };
+      }
       return fromScene(first ? 'night-mafia-1' : 'night-mafia', {
         eyebrow: `${eyebrow} · Мафия`,
         title: first ? 'Первая ночь. Просыпается мафия' : 'Просыпается мафия',
@@ -507,12 +527,48 @@ export function getHostScript(room: RoomState): ScriptStep {
       title: result && !result.peaceful ? 'Город потерял своего' : 'Город проснулся',
       lines: [...linesForScene(dawnScene), ...linesForScene('day')],
       liveLines,
-      note: 'Передавайте слово по кругу, затем — голосование.',
-      action: { key: 'startVoting', label: 'Перейти к голосованию', tone: 'brass' },
+      note: room.settings.requireNominations
+        ? 'Передавайте слово по кругу, затем — выставление кандидатов.'
+        : 'Передавайте слово по кругу, затем — голосование.',
+      action: {
+        key: 'startVoting',
+        label: room.settings.requireNominations ? 'Перейти к выставлению' : 'Перейти к голосованию',
+        tone: 'brass',
+      },
       extra: {
         key: 'nextSpeaker',
         label: room.speaking ? 'Следующий говорит' : 'Дать слово первому',
       },
+    };
+  }
+
+  if (phase === 'nominating') {
+    const names = (room.nominatedIds || [])
+      .map((id) => room.players.find((p) => p.id === id))
+      .filter(Boolean)
+      .map((p) => `${p!.nickname} (${num(p!.slot)})`);
+    const liveLines: string[] = [];
+    if (names.length) liveLines.push(`На голосовании: ${names.join(', ')}.`);
+    else liveLines.push('Пока никто не выставлен.');
+
+    return {
+      id: 'nominating',
+      voiceId: null,
+      eyebrow: `День ${dayNumber} · Выставление`,
+      title: 'Кого ставим на голосование',
+      lines: [
+        'Игроки выставляют кандидатов.',
+        'Голосовать будут только за тех, кого выставили.',
+        'Если стол промолчит — ночь придёт без изгнания.',
+      ],
+      liveLines,
+      note: 'Можно закрыть выставление, не дожидаясь всех.',
+      action: {
+        key: 'startVoting',
+        label: names.length ? 'Закрыть выставление' : 'Никто не выставлен — ночь',
+        tone: 'brass',
+      },
+      waitLabel: 'Ждём выставления',
     };
   }
 

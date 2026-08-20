@@ -89,7 +89,7 @@ export function HostScript({ room, onAction }: HostScriptProps) {
       <header className="relative flex items-center justify-between gap-3 px-5 pt-4 pb-3">
         <span className="eyebrow text-brass-300/90">{script.eyebrow}</span>
         <div className="flex items-center gap-2">
-          {script.voiceId && (
+          {script.voiceId && room.settings.narratorEnabled !== false && (
             <button
               type="button"
               onClick={() => {
@@ -101,12 +101,10 @@ export function HostScript({ room, onAction }: HostScriptProps) {
               className="inline-flex items-center gap-1.5 rounded-full border border-brass-500/30
                 bg-brass-500/10 px-2.5 py-[3px] text-[11px] font-medium tracking-[0.04em] text-brass-300
                 transition-colors hover:bg-brass-500/20"
-              title="Повторить озвучку. Пока файла нет — тишина, это нормально."
+              title="Повторить озвучку"
             >
               <IconPlay size={11} />
-              {voiceQueue.length <= 1
-                ? `${script.voiceId}.mp3`
-                : `${voiceQueue[0]}.mp3 +${voiceQueue.length - 1}`}
+              Повторить
             </button>
           )}
           <Badge tone="brass">Сценарий ведущего</Badge>
@@ -196,11 +194,20 @@ export function HostScript({ room, onAction }: HostScriptProps) {
                 {script.extra.label}
               </Button>
             )}
+            {narratorBusy && room.settings.narratorEnabled !== false && (
+              <Button
+                onClick={() => onAction('skipNarrator')}
+                variant="ghost"
+                className="flex-1"
+              >
+                Пропустить диктора
+              </Button>
+            )}
           </div>
 
           {narratorBusy && (
             <p className="text-[12.5px] text-brass-300/90">
-              Диктор говорит — {formatLeft(narratorLeft)}. Сцену сменим, когда запись закончится.
+              Диктор говорит — {formatLeft(narratorLeft)}. Можно пропустить и идти дальше.
             </p>
           )}
 

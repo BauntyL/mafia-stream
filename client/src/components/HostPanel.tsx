@@ -68,6 +68,24 @@ export function HostPanel({
               hint="Позволяет играть без голосовой связи"
             />
             <Toggle
+              checked={settings.narratorEnabled !== false}
+              onChange={(v) => onUpdateSettings({ narratorEnabled: v })}
+              label="Диктор"
+              hint="Озвучка сценария за столом. Можно выключить или пропускать по фразе"
+            />
+            <Toggle
+              checked={!!settings.peacefulFirstNight}
+              onChange={(v) => onUpdateSettings({ peacefulFirstNight: v })}
+              label="Первая ночь без убийства"
+              hint="Мафия знакомится, выстрела нет. Дон, шериф и доктор ходят как обычно"
+            />
+            <Toggle
+              checked={!!settings.requireNominations}
+              onChange={(v) => onUpdateSettings({ requireNominations: v })}
+              label="Выставление перед голосованием"
+              hint="На голосование попадают только выставленные. Если никого — сразу ночь"
+            />
+            <Toggle
               checked={settings.autoAdvanceNight}
               onChange={(v) => onUpdateSettings({ autoAdvanceNight: v })}
               label="Авто-переход ночью"
@@ -140,7 +158,13 @@ export function HostPanel({
 
       <Panel
         title={phase === 'lobby' ? 'Игроки' : 'Роли — видно только вам'}
-        action={phase === 'voting' ? <Badge tone="blood">{room.votedCount ?? 0}/{room.voterCount ?? 0}</Badge> : undefined}
+        action={
+          phase === 'voting' ? (
+            <Badge tone="blood">{room.votedCount ?? 0}/{room.voterCount ?? 0}</Badge>
+          ) : phase === 'nominating' ? (
+            <Badge tone="brass">{room.nominatedCount ?? 0} на столе</Badge>
+          ) : undefined
+        }
       >
         {tablePlayers.length === 0 ? (
           <p className="text-[13px] text-bone-700">За столом пока никого нет</p>

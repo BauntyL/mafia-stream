@@ -105,7 +105,10 @@ export function useNarrator(room: RoomState | null) {
   }, [volume]);
 
   useEffect(() => {
-    if (!key) return;
+    if (!key || room?.settings?.narratorEnabled === false) {
+      stopNarrator();
+      return;
+    }
     const ids = key.split('|') as NarratorId[];
     const remaining = narratorLeftMs(endsAt);
     if (endsAt && remaining <= 250) return;
@@ -114,5 +117,5 @@ export function useNarrator(room: RoomState | null) {
     const offset = endsAt ? Math.max(0, total - remaining) : 0;
     playNarratorQueue(ids, volumeRef.current, offset);
     return () => stopNarrator();
-  }, [key, endsAt]);
+  }, [key, endsAt, room?.settings?.narratorEnabled]);
 }

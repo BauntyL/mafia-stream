@@ -35,7 +35,7 @@ import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
 import { useLobby } from '../hooks/useLobby';
 import { useCameraPublisher } from '../hooks/useCameraPublisher';
-import { useNarrator } from '../hooks/useNarrator';
+import { useNarrator, stopNarrator } from '../hooks/useNarrator';
 import { stopCamera } from '../webrtc/session';
 import { useSound } from '../hooks/useSound';
 import type { Player, Role, RoomState } from '../types';
@@ -130,7 +130,27 @@ function PlayerActions({
     }
 
     const meta = ACTION_TITLES[room.nightSubPhase || 'mafia'];
+    const peacefulMeet =
+      room.nightSubPhase === 'mafia' &&
+      room.dayNumber <= 1 &&
+      room.settings.peacefulFirstNight;
     const canSkip = room.nightSubPhase === 'mafia' || room.nightSubPhase === 'doctor';
+
+    if (peacefulMeet) {
+      return (
+        <div className="rounded-[9px] border border-blood-600/30 bg-blood-900/[0.14] px-5 py-4">
+          <p className="text-center font-display text-[19px] text-bone-50">Посмотрите на своих</p>
+          <p className="mt-1.5 text-center text-[12.5px] text-bone-600">
+            Первая ночь без выстрела. Запомните лица и подтвердите, что готовы спать.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2.5">
+            <Button onClick={onSkip} size="lg" className="min-w-[220px]">
+              Мы познакомились
+            </Button>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="rounded-[9px] border border-blood-600/30 bg-blood-900/[0.14] px-5 py-4">
@@ -145,6 +165,41 @@ function PlayerActions({
               Пропустить
             </Button>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (room.phase === 'nominating') {
+    if (you.nominationLocked) {
+      return (
+        <div className="flex flex-wrap items-center justify-center gap-3 rounded-[9px] border border-brass-500/35 bg-brass-500/[0.08] px-5 py-4">
+          <IconCheck size={16} className="text-brass-300" />
+          <span className="text-[14px] text-brass-200">
+            {you.nominationSkipped
+              ? 'Вы никого не выставили'
+              : `Выставлен: ${nameOf(you.nominationTargetId || null)}`}
+          </span>
+          <span className="text-[13px] text-bone-700">
+            Выставили {room.votedCount ?? 0} из {room.voterCount ?? 0}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-[9px] border border-brass-500/30 bg-brass-500/[0.08] px-5 py-4">
+        <p className="text-center font-display text-[19px] text-bone-50">Кого выставляем</p>
+        <p className="mt-1.5 text-center text-[12.5px] text-bone-600">
+          На голосование попадут только выставленные игроки.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2.5">
+          <Button onClick={onConfirm} disabled={!selected} size="lg" className="min-w-[220px]">
+            {selected ? `Выставить: ${nameOf(selected)}` : 'Выберите игрока'}
+          </Button>
+          <Button onClick={onSkip} variant="secondary" size="lg">
+            Не выставлять
+          </Button>
         </div>
       </div>
     );
@@ -311,7 +366,12 @@ export function GamePage() {
       }
       return;
     }
-    const events: Record<Exclude<ScriptActionKey, 'startGame'>, string> = {
+    if (key === 'skipNarrator') {
+      stopNarrator();
+      await emit('skipNarrator');
+      return;
+    }
+    const events: Record<Exclude<ScriptActionKey, 'startGame' | 'skipNarrator'>, string> = {
       startNight: 'hostStartNight',
       advanceNight: 'hostAdvanceNight',
       resolveNight: 'hostResolveNight',
@@ -356,6 +416,17 @@ export function GamePage() {
     }
   };
 
+  const submitNomination = async (targetId: string | null) => {
+    const result = await emit<{ success: boolean; error?: string }>('nominate', { targetId });
+    if (result?.success) {
+      sound.confirm();
+      setSelectedTarget(null);
+    } else {
+      sound.error();
+      showNotice(result?.error || 'Не удалось выставить');
+    }
+  };
+
   const sendChat = async (text: string): Promise<string | null> => {
     const result = await emit<{ success: boolean; error?: string }>('chat', { text });
     return result?.success ? null : result?.error || 'Сообщение не отправлено';
@@ -375,10 +446,18 @@ export function GamePage() {
   const inLobby = room.phase === 'lobby';
   const inGame = !inLobby && room.phase !== 'roleReveal';
   const you = room.you;
+  const peacefulMeet =
+    room.phase === 'night' &&
+    room.nightSubPhase === 'mafia' &&
+    room.dayNumber <= 1 &&
+    room.settings.peacefulFirstNight;
   const selectable = Boolean(
     !isHost &&
       me?.alive &&
-      ((room.phase === 'night' && you?.canAct) || (room.phase === 'voting' && !you?.voteLocked)),
+      !peacefulMeet &&
+      ((room.phase === 'night' && you?.canAct) ||
+        (room.phase === 'voting' && !you?.voteLocked) ||
+        (room.phase === 'nominating' && !you?.nominationLocked)),
   );
 
   // Подписи под игроками: кто как голосует, куда целится мафия
@@ -409,7 +488,7 @@ export function GamePage() {
           background:
             room.phase === 'night'
               ? 'radial-gradient(80% 50% at 50% 0%, rgba(91,114,144,0.12) 0%, transparent 60%)'
-              : room.phase === 'voting'
+              : room.phase === 'voting' || room.phase === 'nominating'
                 ? 'radial-gradient(80% 50% at 50% 0%, rgba(184,50,61,0.13) 0%, transparent 60%)'
                 : 'radial-gradient(80% 50% at 50% 0%, rgba(207,174,82,0.08) 0%, transparent 60%)',
           transition: 'background 1.2s ease',
@@ -642,12 +721,30 @@ export function GamePage() {
                       ? you?.voteLocked
                         ? you.voteTargetId
                         : null
-                      : you?.actionLocked
-                        ? you.actionTargetId
+                      : room.phase === 'nominating'
+                        ? you?.nominationLocked
+                          ? you.nominationTargetId
+                          : null
+                        : you?.actionLocked
+                          ? you.actionTargetId
+                          : null
+                  }
+                  tally={
+                    room.phase === 'voting'
+                      ? room.voteTally
+                      : room.phase === 'nominating'
+                        ? room.nominationTally
+                        : undefined
+                  }
+                  candidateIds={
+                    room.phase === 'voting'
+                      ? room.voteCandidateIds
+                      : room.phase === 'nominating' && playerId
+                        ? room.players
+                            .filter((p) => !p.isHost && p.alive && p.id !== playerId)
+                            .map((p) => p.id)
                         : null
                   }
-                  tally={room.phase === 'voting' ? room.voteTally : undefined}
-                  candidateIds={room.phase === 'voting' ? room.voteCandidateIds : null}
                   annotations={annotations}
                   speakingId={room.speaking?.playerId || null}
                 />
@@ -660,10 +757,16 @@ export function GamePage() {
                     onConfirm={() =>
                       room.phase === 'voting'
                         ? submitVote(selectedTarget)
-                        : submitNight(selectedTarget)
+                        : room.phase === 'nominating'
+                          ? submitNomination(selectedTarget)
+                          : submitNight(selectedTarget)
                     }
                     onSkip={() =>
-                      room.phase === 'voting' ? submitVote(null) : submitNight(null)
+                      room.phase === 'voting'
+                        ? submitVote(null)
+                        : room.phase === 'nominating'
+                          ? submitNomination(null)
+                          : submitNight(null)
                     }
                   />
                 )}
@@ -688,7 +791,9 @@ export function GamePage() {
                     <p className="text-[15px] text-sage-400">
                       {room.lastNightResult.saved
                         ? 'Доктор успел вовремя — все живы'
-                        : 'Ночь прошла спокойно — все живы'}
+                        : room.dayNumber === 1 && room.settings.peacefulFirstNight
+                          ? 'Первая ночь без выстрела — все живы'
+                          : 'Ночь прошла спокойно — все живы'}
                     </p>
                   ) : (
                     <p className="text-[15px] text-blood-300">

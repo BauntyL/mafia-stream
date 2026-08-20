@@ -28,6 +28,10 @@ import {
   clearSpeaker,
   startVoting,
   submitVote,
+  startNominations,
+  closeNominations,
+  submitNomination,
+  applySettings,
   resolveVoting,
   addChatMessage,
   startTimer,
@@ -39,7 +43,7 @@ import {
   checkWinNow,
 } from './rooms.js';
 import { runBots } from './bots.js';
-import { isNarratorBusy, narratorLeftMs } from './narrator.js';
+import { isNarratorBusy, narratorLeftMs, skipNarrator } from './narrator.js';
 import {
   LOBBY_HALL,
   setVisitor,
@@ -310,7 +314,14 @@ io.on('connection', (socket) => {
   socket.on('updateSettings', ({ settings }, cb) => {
     const { room } = hostCtx();
     if (!room) return done(cb);
-    room.settings = { ...room.settings, ...settings };
+    applySettings(room, settings);
+    done(cb, room);
+  });
+
+  socket.on('skipNarrator', (_, cb) => {
+    const { room } = hostCtx();
+    if (!room) return done(cb);
+    skipNarrator(room);
     done(cb, room);
   });
 
@@ -387,9 +398,16 @@ io.on('connection', (socket) => {
 
   socket.on('hostStartVoting', (_, cb) => {
     const { room } = hostCtx();
-    if (!room || room.phase !== 'day') return done(cb);
+    if (!room) return done(cb);
     if (narratorWait(room, cb)) return;
-    startVoting(room);
+    if (room.phase === 'nominating') {
+      closeNominations(room);
+      done(cb, room);
+      return;
+    }
+    if (room.phase !== 'day') return done(cb);
+    if (room.settings.requireNominations) startNominations(room);
+    else startVoting(room);
     done(cb, room);
   });
 
@@ -463,6 +481,21 @@ io.on('connection', (socket) => {
       return;
     }
     const result = submitVote(room, currentPlayerId, targetId);
+    if (result.error) {
+      cb?.({ success: false, error: result.error });
+      return;
+    }
+    cb?.({ success: true, skipped: result.skipped });
+    emitRoomUpdate(room);
+  });
+
+  socket.on('nominate', ({ targetId }, cb) => {
+    const { room } = ctx();
+    if (!room) {
+      cb?.({ success: false, error: 'Комната не найдена' });
+      return;
+    }
+    const result = submitNomination(room, currentPlayerId, targetId);
     if (result.error) {
       cb?.({ success: false, error: result.error });
       return;

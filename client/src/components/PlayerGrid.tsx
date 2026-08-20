@@ -198,6 +198,7 @@ const PHASE_META: Record<
   roleReveal: { text: 'Раздача ролей', Icon: IconUsers, tone: 'text-brass-300', glow: '#cfae5218' },
   night: { text: 'Ночь', Icon: IconMoon, tone: 'text-steel-300', glow: '#8fa8c418' },
   day: { text: 'День', Icon: IconSun, tone: 'text-brass-300', glow: '#cfae5218' },
+  nominating: { text: 'Выставление', Icon: IconGavel, tone: 'text-brass-300', glow: '#cfae5220' },
   voting: { text: 'Голосование', Icon: IconGavel, tone: 'text-blood-300', glow: '#b8323d20' },
   ended: { text: 'Игра окончена', Icon: IconTrophy, tone: 'text-brass-300', glow: '#cfae5220' },
 };
@@ -213,7 +214,7 @@ const SUB_LABELS: Record<string, string> = {
 export function PhaseBanner({ phase, nightSubPhase, dayNumber, aliveCount }: PhaseBannerProps) {
   const meta = PHASE_META[phase] ?? PHASE_META.lobby;
   const { Icon } = meta;
-  const showDay = phase === 'night' || phase === 'day';
+  const showDay = phase === 'night' || phase === 'day' || phase === 'nominating' || phase === 'voting';
 
   return (
     <div

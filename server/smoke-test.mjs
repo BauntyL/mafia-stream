@@ -50,6 +50,9 @@ const run = async () => {
   check('все 6 игроков в лобби', host.room.gamePlayerCount === 6);
   check('можно начинать', host.room.canStart === true);
 
+  await emit(host, 'updateSettings', { settings: { narratorEnabled: false } });
+  await wait(80);
+
   // Чат в лобби
   await emit(players[0], 'chat', { text: 'всем привет' });
   await wait(150);

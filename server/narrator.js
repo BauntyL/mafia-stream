@@ -23,6 +23,8 @@ export const NARRATOR_DURATION_MS = {
 const PAD_MS = 500;
 
 export function narratorQueue(room) {
+  if (room.settings?.narratorEnabled === false) return [];
+
   const { phase, nightSubPhase, dayNumber, lastNightResult, revoteRound, winner } = room;
 
   if (phase === 'lobby') return ['lobby', 'lobby-2'];
@@ -30,7 +32,8 @@ export function narratorQueue(room) {
 
   if (phase === 'night') {
     if (nightSubPhase === 'mafia') {
-      return dayNumber <= 1 ? ['night-mafia-1', 'night-mafia-1-2'] : ['night-mafia'];
+      if (dayNumber > 1) return ['night-mafia'];
+      return room.settings?.peacefulFirstNight ? ['night-mafia-1'] : ['night-mafia-1', 'night-mafia-1-2'];
     }
     if (nightSubPhase === 'don') return ['night-don'];
     if (nightSubPhase === 'sheriff') return ['night-sheriff'];
@@ -54,7 +57,16 @@ export function narratorDurationMs(room) {
 }
 
 export function armNarrator(room) {
-  room.narratorEndsAt = Date.now() + narratorDurationMs(room) + PAD_MS;
+  if (room.settings?.narratorEnabled === false) {
+    room.narratorEndsAt = 0;
+    return;
+  }
+  const duration = narratorDurationMs(room);
+  room.narratorEndsAt = duration > 0 ? Date.now() + duration + PAD_MS : 0;
+}
+
+export function skipNarrator(room) {
+  room.narratorEndsAt = 0;
 }
 
 export function isNarratorBusy(room) {
