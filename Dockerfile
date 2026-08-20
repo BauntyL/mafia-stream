@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -10,9 +10,10 @@ RUN npm install --prefix client --include=dev
 RUN npm install --prefix server
 
 COPY . .
+RUN npm rebuild --prefix client lightningcss @tailwindcss/oxide || true
 RUN npm run build --prefix client
 
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
