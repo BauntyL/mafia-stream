@@ -876,20 +876,21 @@ export function GamePage() {
           </div>
 
           {/* ── Боковая колонка ── */}
-          <aside
-            className={
-              inLobby
-                ? 'min-w-0 space-y-4'
-                : 'flex min-w-0 flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-5.25rem)]'
-            }
-          >
-            {room.settings.chatEnabled && !inLobby && (
-              <div className="hidden min-h-0 flex-1 flex-col lg:flex">
-                <Chat room={room} me={me} onSend={sendChat} className="h-full min-h-[240px]" />
-              </div>
+          <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden">
+            {room.settings.chatEnabled && (
+              <Chat
+                room={room}
+                me={me}
+                onSend={sendChat}
+                className={
+                  inLobby
+                    ? 'h-[300px] shrink-0 lg:h-auto lg:min-h-0 lg:flex-[1.15]'
+                    : 'hidden min-h-0 flex-[1.15] lg:flex'
+                }
+              />
             )}
 
-            <div className={inLobby ? 'contents' : 'space-y-4 overflow-y-auto lg:min-h-0'}>
+            <div className="min-h-0 space-y-4 overflow-y-auto lg:flex-1">
             {isHost && (
               <HostPanel
                 room={room}
@@ -974,10 +975,6 @@ export function GamePage() {
                   ))}
                 </ol>
               </Panel>
-            )}
-
-            {inLobby && room.settings.chatEnabled && (
-              <Chat room={room} me={me} onSend={sendChat} />
             )}
 
             {!inLobby && <GameLog entries={room.log} />}

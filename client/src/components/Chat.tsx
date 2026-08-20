@@ -62,7 +62,7 @@ export function Chat({ room, me, onSend, className }: ChatProps) {
 
   return (
     <section
-      className={`panel flex flex-col overflow-hidden ${className ?? 'h-[380px] lg:h-[min(520px,60vh)]'}`}
+      className={`panel flex flex-col overflow-hidden bg-ink-900 ${className ?? 'h-[320px] lg:h-[min(420px,50vh)]'}`}
     >
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3">
         <h3 className="eyebrow">Чат</h3>
