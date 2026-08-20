@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconSend, IconBan } from './Icons';
+import { ChatCensorToggle } from './ChatCensorToggle';
+import { useSettings } from '../store/settings';
+import { CENSOR_SEND_ERROR, censorChat, isChatBanned } from '../utils/censor';
 import type { ChatChannel, Player, RoomState } from '../types';
 
 interface ChatProps {
@@ -40,6 +43,7 @@ export function Chat({ room, me, onSend, className }: ChatProps) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const chatCensor = useSettings((s) => s.chatCensor);
 
   const { channel, label, blocked } = useMemo(() => resolveChannel(room, me), [room, me]);
   const messages = room.chat;
@@ -52,6 +56,11 @@ export function Chat({ room, me, onSend, className }: ChatProps) {
   const send = async () => {
     const value = text.trim();
     if (!value || !channel) return;
+    if (chatCensor && isChatBanned(value)) {
+      setError(CENSOR_SEND_ERROR);
+      window.setTimeout(() => setError(null), 2500);
+      return;
+    }
     setText('');
     const err = await onSend(value);
     if (err) {
@@ -66,12 +75,15 @@ export function Chat({ room, me, onSend, className }: ChatProps) {
     >
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3">
         <h3 className="eyebrow">Чат</h3>
-        {channel && (
-          <span className="flex items-center gap-2 text-[11px] text-bone-600">
-            <span className={`h-1.5 w-1.5 rounded-full ${CHANNEL_STYLE[channel].dot}`} />
-            {label}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {channel && (
+            <span className="flex items-center gap-2 text-[11px] text-bone-600">
+              <span className={`h-1.5 w-1.5 rounded-full ${CHANNEL_STYLE[channel].dot}`} />
+              {label}
+            </span>
+          )}
+          <ChatCensorToggle compact />
+        </div>
       </header>
       <div className="rule shrink-0" />
 
@@ -110,11 +122,11 @@ export function Chat({ room, me, onSend, className }: ChatProps) {
                       {String(m.authorSlot).padStart(2, '0')}
                     </span>
                   ) : null}
-                  {m.isHost ? 'Ведущий' : m.authorName}
+                  {m.isHost ? 'Ведущий' : chatCensor ? censorChat(m.authorName) : m.authorName}
                   {m.channel === 'mafia' && <span className="ml-1.5 text-[10px] uppercase tracking-[0.16em]">мафия</span>}
                   {m.channel === 'dead' && <span className="ml-1.5 text-[10px] uppercase tracking-[0.16em]">выбыл</span>}
                 </span>
-                <span className={`ml-2 ${style.text}`}>{m.text}</span>
+                <span className={`ml-2 ${style.text}`}>{chatCensor ? censorChat(m.text) : m.text}</span>
               </motion.div>
             );
           })}

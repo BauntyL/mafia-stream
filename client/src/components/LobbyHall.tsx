@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconClose, IconSend, IconUsers } from './Icons';
+import { ChatCensorToggle } from './ChatCensorToggle';
+import { useSettings } from '../store/settings';
+import { CENSOR_SEND_ERROR, censorChat, isChatBanned } from '../utils/censor';
 import type { LobbyState } from '../types';
 
 interface LobbyHallProps {
@@ -16,6 +19,7 @@ export function LobbyHall({ open, onClose, lobby, me, onSend }: LobbyHallProps) 
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const chatCensor = useSettings((s) => s.chatCensor);
 
   useEffect(() => {
     const el = listRef.current;
@@ -38,6 +42,11 @@ export function LobbyHall({ open, onClose, lobby, me, onSend }: LobbyHallProps) 
   const send = async () => {
     const value = text.trim();
     if (!value) return;
+    if (chatCensor && isChatBanned(value)) {
+      setError(CENSOR_SEND_ERROR);
+      window.setTimeout(() => setError(null), 2500);
+      return;
+    }
     setText('');
     const err = await onSend(value);
     if (err) {
@@ -126,7 +135,7 @@ export function LobbyHall({ open, onClose, lobby, me, onSend }: LobbyHallProps) 
             <section className="flex min-h-0 flex-1 flex-col">
               <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
                 <h3 className="eyebrow">Общий чат</h3>
-                <span className="text-[11px] text-bone-700">весь сайт</span>
+                <ChatCensorToggle compact />
               </div>
 
               <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-3">
@@ -143,8 +152,10 @@ export function LobbyHall({ open, onClose, lobby, me, onSend }: LobbyHallProps) 
                       animate={{ opacity: 1, y: 0 }}
                       className="text-[13.5px] leading-snug"
                     >
-                      <span className="font-medium text-bone-400">{m.authorName}</span>
-                      <span className="ml-2 text-bone-100">{m.text}</span>
+                      <span className="font-medium text-bone-400">
+                        {chatCensor ? censorChat(m.authorName) : m.authorName}
+                      </span>
+                      <span className="ml-2 text-bone-100">{chatCensor ? censorChat(m.text) : m.text}</span>
                     </motion.div>
                   ))}
                 </AnimatePresence>

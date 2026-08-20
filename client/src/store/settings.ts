@@ -6,10 +6,12 @@ interface SettingsState {
   sfxVolume: number;
   animationsEnabled: boolean;
   roleHidden: boolean;
+  chatCensor: boolean;
   setMusicVolume: (v: number) => void;
   setSfxVolume: (v: number) => void;
   setAnimationsEnabled: (v: boolean) => void;
   setRoleHidden: (v: boolean) => void;
+  setChatCensor: (v: boolean) => void;
 }
 
 export const useSettings = create<SettingsState>()(
@@ -19,20 +21,26 @@ export const useSettings = create<SettingsState>()(
       sfxVolume: 0.5,
       animationsEnabled: true,
       roleHidden: false,
+      chatCensor: true,
       setMusicVolume: (musicVolume) => set({ musicVolume }),
       setSfxVolume: (sfxVolume) => set({ sfxVolume }),
       setAnimationsEnabled: (animationsEnabled) => set({ animationsEnabled }),
       setRoleHidden: (roleHidden) => set({ roleHidden }),
+      setChatCensor: (chatCensor) => set({ chatCensor }),
     }),
     {
       name: 'mafia-settings',
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as SettingsState;
+        let next = state;
         if (version < 3) {
-          return { ...state, musicVolume: 0.1 };
+          next = { ...next, musicVolume: 0.1 };
         }
-        return state;
+        if (version < 4) {
+          next = { ...next, chatCensor: true };
+        }
+        return next;
       },
     }
   )

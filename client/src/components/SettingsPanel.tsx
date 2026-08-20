@@ -47,10 +47,12 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     sfxVolume,
     animationsEnabled,
     roleHidden,
+    chatCensor,
     setMusicVolume,
     setSfxVolume,
     setAnimationsEnabled,
     setRoleHidden,
+    setChatCensor,
   } = useSettings();
 
   useMenuMusic('settings', open);
@@ -80,6 +82,12 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             onChange={setRoleHidden}
             label="Скрыть мою роль"
             hint="Если кто-то смотрит в ваш монитор"
+          />
+          <Toggle
+            checked={chatCensor}
+            onChange={setChatCensor}
+            label="Цензура чата"
+            hint="Скрывает запрещённые на Twitch темы. Можно выключить у себя"
           />
         </div>
       </div>
