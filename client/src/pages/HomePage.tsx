@@ -25,6 +25,7 @@ export function HomePage() {
   const [loading, setLoading] = useState<'create' | 'join' | null>(null);
   const [error, setError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hallOpen, setHallOpen] = useState(false);
   const [ready, setReady] = useState(!!nickname);
 
   type JoinResult = { success: boolean; error?: string; playerId?: string; room?: { code: string } };
@@ -74,14 +75,38 @@ export function HomePage() {
 
       <NicknameModal onConfirm={() => setReady(true)} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {nickname && (
+        <LobbyHall
+          open={hallOpen}
+          onClose={() => setHallOpen(false)}
+          lobby={lobby}
+          me={nickname}
+          onSend={send}
+        />
+      )}
 
-      <header className="relative z-10 flex items-center justify-end px-6 py-5">
+      <header className="relative z-10 flex items-center justify-end gap-2 px-6 py-5">
+        {nickname && (
+          <button
+            type="button"
+            onClick={() => {
+              sound.click();
+              setHallOpen(true);
+            }}
+            className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-bone-50/10
+              bg-bone-50/[0.04] px-3 text-[13px] text-bone-300 transition-colors
+              hover:border-bone-50/18 hover:bg-bone-50/[0.07] hover:text-bone-50"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-sage-400" />
+            Онлайн {lobby.count}
+          </button>
+        )}
         <IconButton label="Настройки" onClick={() => setSettingsOpen(true)}>
           <IconGear size={18} />
         </IconButton>
       </header>
 
-      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-160px)] max-w-[960px] flex-col items-center justify-center px-6 pb-16">
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-160px)] max-w-[560px] flex-col items-center justify-center px-6 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -116,7 +141,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25, duration: 0.7 }}
-            className="mt-11 grid w-full gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1.05fr)] lg:items-start"
+            className="mt-11 w-full"
           >
             <div className="panel p-6">
               <div className="mb-5 flex items-baseline justify-between">
@@ -170,8 +195,6 @@ export function HomePage() {
 
               {error && <p className="mt-3 text-center text-[13px] text-blood-300">{error}</p>}
             </div>
-
-            {nickname && <LobbyHall lobby={lobby} me={nickname} onSend={send} />}
           </motion.div>
         )}
       </main>
