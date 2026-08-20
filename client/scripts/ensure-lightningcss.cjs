@@ -13,50 +13,62 @@ function entries(dir) {
   }
 }
 
-function findLightningcss(dir, acc = []) {
+function findNamed(dir, name, acc = []) {
   for (const e of entries(dir)) {
     if (!e.isDirectory() || e.name === '.bin' || e.name === '.cache') continue;
     const p = path.join(dir, e.name);
-    if (e.name === 'lightningcss' && fs.existsSync(path.join(p, 'package.json'))) {
-      acc.push(p);
-    }
-    findLightningcss(p, acc);
+    if (e.name === name && fs.existsSync(path.join(p, 'package.json'))) acc.push(p);
+    findNamed(p, name, acc);
   }
   return acc;
 }
 
-function hasNative(dir) {
+function hasNode(dir) {
   return entries(dir).some((e) => e.isFile() && e.name.endsWith('.node'));
 }
 
-function nativePkgDirs() {
-  return entries(nm)
-    .filter((e) => e.isDirectory() && e.name.startsWith('lightningcss-linux-'))
-    .map((e) => path.join(nm, e.name));
-}
-
-function copyNative(target) {
-  for (const pkg of nativePkgDirs()) {
-    for (const e of entries(pkg)) {
-      if (e.isFile() && e.name.endsWith('.node')) {
-        fs.copyFileSync(path.join(pkg, e.name), path.join(target, e.name));
-      }
+function copyDotNode(fromDir, toDir) {
+  for (const e of entries(fromDir)) {
+    const src = path.join(fromDir, e.name);
+    if (e.isFile() && e.name.endsWith('.node')) {
+      fs.copyFileSync(src, path.join(toDir, e.name));
     }
   }
 }
 
-if (!fs.existsSync(nm)) process.exit(0);
+if (process.platform !== 'linux' || !fs.existsSync(nm)) process.exit(0);
 
-const pkgs = findLightningcss(nm);
-if (pkgs.every(hasNative)) process.exit(0);
+const pkgs = [
+  '@tailwindcss/oxide-linux-x64-gnu',
+  '@tailwindcss/oxide-linux-x64-musl',
+  'lightningcss-linux-x64-gnu',
+  'lightningcss-linux-x64-musl',
+];
 
-if (nativePkgDirs().length === 0) {
-  execSync(
-    'npm install --no-save --no-package-lock lightningcss-linux-x64-gnu lightningcss-linux-x64-musl',
-    { cwd: root, stdio: 'inherit' },
-  );
+execSync(`npm install --no-save --no-package-lock --include=optional ${pkgs.join(' ')}`, {
+  cwd: root,
+  stdio: 'inherit',
+  env: { ...process.env, NODE_ENV: 'development', npm_config_optional: 'true' },
+});
+
+for (const dir of findNamed(nm, 'lightningcss')) {
+  if (hasNode(dir)) continue;
+  for (const pkg of ['lightningcss-linux-x64-gnu', 'lightningcss-linux-x64-musl']) {
+    const src = path.join(nm, pkg);
+    if (fs.existsSync(src)) copyDotNode(src, dir);
+  }
 }
 
-for (const dir of pkgs) {
-  if (!hasNative(dir)) copyNative(dir);
+for (const dir of findNamed(nm, 'oxide')) {
+  const pkg = path.join(dir, 'package.json');
+  try {
+    if (JSON.parse(fs.readFileSync(pkg, 'utf8')).name !== '@tailwindcss/oxide') continue;
+  } catch {
+    continue;
+  }
+  if (hasNode(dir)) continue;
+  for (const name of ['@tailwindcss/oxide-linux-x64-gnu', '@tailwindcss/oxide-linux-x64-musl']) {
+    const src = path.join(nm, name);
+    if (fs.existsSync(src)) copyDotNode(src, dir);
+  }
 }
