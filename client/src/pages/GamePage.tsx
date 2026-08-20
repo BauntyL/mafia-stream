@@ -586,7 +586,7 @@ export function GamePage() {
           )}
         </AnimatePresence>
 
-        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
           {/* ── Основная колонка ── */}
           <div className="min-w-0 space-y-5">
             {isHost && <HostScript room={room} onAction={handleHostAction} />}
@@ -862,10 +862,34 @@ export function GamePage() {
                 )}
               </motion.div>
             )}
+
+            {inGame && room.settings.chatEnabled && (
+              <div className="lg:hidden">
+                <Chat
+                  room={room}
+                  me={me}
+                  onSend={sendChat}
+                  className="h-[min(420px,52vh)]"
+                />
+              </div>
+            )}
           </div>
 
           {/* ── Боковая колонка ── */}
-          <aside className="min-w-0 space-y-4">
+          <aside
+            className={
+              inLobby
+                ? 'min-w-0 space-y-4'
+                : 'flex min-w-0 flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-5.25rem)]'
+            }
+          >
+            {room.settings.chatEnabled && !inLobby && (
+              <div className="hidden min-h-0 flex-1 flex-col lg:flex">
+                <Chat room={room} me={me} onSend={sendChat} className="h-full min-h-[240px]" />
+              </div>
+            )}
+
+            <div className={inLobby ? 'contents' : 'space-y-4 overflow-y-auto lg:min-h-0'}>
             {isHost && (
               <HostPanel
                 room={room}
@@ -952,9 +976,12 @@ export function GamePage() {
               </Panel>
             )}
 
-            {room.settings.chatEnabled && <Chat room={room} me={me} onSend={sendChat} />}
+            {inLobby && room.settings.chatEnabled && (
+              <Chat room={room} me={me} onSend={sendChat} />
+            )}
 
             {!inLobby && <GameLog entries={room.log} />}
+            </div>
           </aside>
         </div>
       </main>

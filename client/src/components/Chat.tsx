@@ -7,6 +7,7 @@ interface ChatProps {
   room: RoomState;
   me: Player | undefined;
   onSend: (text: string) => Promise<string | null>;
+  className?: string;
 }
 
 const CHANNEL_STYLE: Record<ChatChannel, { name: string; text: string; dot: string }> = {
@@ -35,7 +36,7 @@ function resolveChannel(room: RoomState, me: Player | undefined): {
   return { channel: 'all', label: 'Общий стол' };
 }
 
-export function Chat({ room, me, onSend }: ChatProps) {
+export function Chat({ room, me, onSend, className }: ChatProps) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -60,7 +61,9 @@ export function Chat({ room, me, onSend }: ChatProps) {
   };
 
   return (
-    <section className="panel flex h-[420px] flex-col overflow-hidden lg:h-[min(560px,60vh)]">
+    <section
+      className={`panel flex flex-col overflow-hidden ${className ?? 'h-[380px] lg:h-[min(520px,60vh)]'}`}
+    >
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3">
         <h3 className="eyebrow">Чат</h3>
         {channel && (
