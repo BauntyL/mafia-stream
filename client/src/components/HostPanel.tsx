@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from './Button';
-import { Panel, Toggle, Badge } from './ui';
-import { IconClock, IconSkull, IconBan, IconRobot } from './Icons';
+import { Panel, Toggle, Badge, Modal } from './ui';
+import { IconClock, IconSkull, IconBan, IconRobot, IconGear } from './Icons';
 import { ROLE_EMBLEMS } from './Icons';
 import type { RoomState, Role } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
@@ -29,6 +29,7 @@ export function HostPanel({
 }: HostPanelProps) {
   const { phase, gamePlayerCount, settings } = room;
   const [confirmKill, setConfirmKill] = useState<string | null>(null);
+  const [lobbySettingsOpen, setLobbySettingsOpen] = useState(false);
   const botCount = room.players.filter((p) => p.isBot).length;
   const tablePlayers = room.players
     .filter((p) => !p.isHost)
@@ -40,15 +41,25 @@ export function HostPanel({
 
   const mafiaPickIds = new Set(Object.values(picks?.mafia || {}).filter(Boolean));
 
+  const settingHints = [
+    settings.includeDoctor ? 'доктор' : null,
+    settings.chatEnabled ? 'чат' : null,
+    settings.narratorEnabled !== false ? 'диктор' : null,
+    settings.peacefulFirstNight ? 'тихая ночь' : null,
+    settings.requireNominations ? 'выставление' : null,
+  ].filter(Boolean);
+
   return (
     <div className="space-y-4">
-      <Panel
-        title="Управление"
-        accent="brass"
-        action={<Badge tone="brass">{gamePlayerCount} за столом</Badge>}
-      >
-        {phase === 'lobby' ? (
-          <div className="space-y-4">
+      {phase === 'lobby' && (
+        <Modal
+          open={lobbySettingsOpen}
+          onClose={() => setLobbySettingsOpen(false)}
+          title="Настройки стола"
+          subtitle="Действуют с начала партии"
+          width="max-w-[460px]"
+        >
+          <div className="max-h-[min(68vh,560px)] space-y-4 overflow-y-auto pr-1">
             <Toggle
               checked={settings.includeDoctor}
               onChange={(v) => onUpdateSettings({ includeDoctor: v })}
@@ -128,6 +139,31 @@ export function HostPanel({
                 )}
               </div>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      <Panel
+        title={phase === 'lobby' ? 'Стол' : 'Управление'}
+        accent="brass"
+        action={<Badge tone="brass">{gamePlayerCount} за столом</Badge>}
+      >
+        {phase === 'lobby' ? (
+          <div className="space-y-3">
+            <Button
+              onClick={() => setLobbySettingsOpen(true)}
+              variant="secondary"
+              className="w-full"
+              icon={<IconGear size={16} />}
+            >
+              Настройки стола
+            </Button>
+            {settingHints.length > 0 && (
+              <p className="text-center text-[12px] leading-relaxed text-bone-700">
+                {settingHints.join(' · ')}
+                {botCount > 0 ? ` · ботов: ${botCount}` : ''}
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
