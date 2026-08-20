@@ -39,6 +39,7 @@ import {
   checkWinNow,
 } from './rooms.js';
 import { runBots } from './bots.js';
+import { isNarratorBusy, narratorLeftMs } from './narrator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -52,6 +53,12 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
+
+function narratorWait(room, cb) {
+  if (!isNarratorBusy(room)) return false;
+  cb?.({ success: false, error: 'Дождитесь, пока диктор закончит' });
+  return true;
+}
 
 /** Подтверждаем каждое событие: иначе промис на клиенте не разрешится никогда. */
 function done(cb, room) {
@@ -79,12 +86,20 @@ function scheduleBots(room) {
   if (botTimers.has(room.code)) return;
   if (!room.players.some((p) => p.isBot)) return;
 
+  const narratorWaitMs = narratorLeftMs(room);
+  const delay =
+    narratorWaitMs > 0 ? narratorWaitMs + 300 : 700 + Math.floor(Math.random() * 700);
+
   const timer = setTimeout(() => {
     botTimers.delete(room.code);
     const fresh = getRoom(room.code);
     if (!fresh) return;
+    if (isNarratorBusy(fresh)) {
+      scheduleBots(fresh);
+      return;
+    }
     if (runBots(fresh)) emitRoomUpdate(fresh);
-  }, 700 + Math.floor(Math.random() * 700));
+  }, delay);
 
   botTimers.set(room.code, timer);
 }
@@ -265,6 +280,7 @@ io.on('connection', (socket) => {
       cb?.({ success: false, error: 'Только ведущий может начать игру' });
       return;
     }
+    if (narratorWait(room, cb)) return;
     const result = startGame(room);
     if (result.error) {
       cb?.({ success: false, error: result.error });
@@ -277,6 +293,7 @@ io.on('connection', (socket) => {
   socket.on('restartGame', (_, cb) => {
     const { room } = hostCtx();
     if (!room) return done(cb);
+    if (narratorWait(room, cb)) return;
     restartGame(room);
     done(cb, room);
   });
@@ -291,6 +308,7 @@ io.on('connection', (socket) => {
   socket.on('hostStartNight', (_, cb) => {
     const { room } = hostCtx();
     if (!room || room.phase !== 'roleReveal') return done(cb);
+    if (narratorWait(room, cb)) return;
     startNight(room);
     done(cb, room);
   });
@@ -298,6 +316,7 @@ io.on('connection', (socket) => {
   socket.on('hostAdvanceNight', (_, cb) => {
     const { room } = hostCtx();
     if (!room) return done(cb);
+    if (narratorWait(room, cb)) return;
     advanceNightPhase(room);
     done(cb, room);
   });
@@ -305,6 +324,7 @@ io.on('connection', (socket) => {
   socket.on('hostResolveNight', (_, cb) => {
     const { room } = hostCtx();
     if (!room || room.phase !== 'night') return done(cb);
+    if (narratorWait(room, cb)) return;
     resolveNight(room);
     done(cb, room);
   });
@@ -326,6 +346,7 @@ io.on('connection', (socket) => {
   socket.on('hostStartVoting', (_, cb) => {
     const { room } = hostCtx();
     if (!room || room.phase !== 'day') return done(cb);
+    if (narratorWait(room, cb)) return;
     startVoting(room);
     done(cb, room);
   });
@@ -333,6 +354,7 @@ io.on('connection', (socket) => {
   socket.on('hostResolveVoting', (_, cb) => {
     const { room } = hostCtx();
     if (!room || room.phase !== 'voting') return done(cb);
+    if (narratorWait(room, cb)) return;
     resolveVoting(room);
     done(cb, room);
   });
@@ -376,14 +398,19 @@ io.on('connection', (socket) => {
     emitRoomUpdate(room);
 
     if (room.settings.autoAdvanceNight && room.phase === 'night') {
+      const sub = room.nightSubPhase;
+      const day = room.dayNumber;
+      const wait = Math.max(1500, narratorLeftMs(room));
       setTimeout(() => {
         const fresh = getRoom(room.code);
         if (!fresh || fresh.phase !== 'night') return;
+        if (fresh.nightSubPhase !== sub || fresh.dayNumber !== day) return;
         if (fresh.nightSubPhase === 'resolve') return;
         if (!isStepComplete(fresh)) return;
+        if (isNarratorBusy(fresh)) return;
         advanceNightPhase(fresh);
         emitRoomUpdate(fresh);
-      }, 1500);
+      }, wait);
     }
   });
 

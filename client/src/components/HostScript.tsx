@@ -1,14 +1,23 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './Button';
 import { Badge } from './ui';
-import { IconCheck, IconChevronRight, IconSpinner, Ornament } from './Icons';
+import { IconCheck, IconChevronRight, IconSpinner, IconPlay, Ornament } from './Icons';
 import { TimerBar } from './Timer';
-import { getHostScript, type ScriptActionKey } from '../utils/script';
+import { getHostScript, getNarratorDurationMs, getNarratorQueue, type ScriptActionKey } from '../utils/script';
+import { narratorLeftMs, playNarratorQueue, useNarratorLeft } from '../hooks/useNarrator';
+import { useSettings } from '../store/settings';
 import type { RoomState } from '../types';
 
 interface HostScriptProps {
   room: RoomState;
   onAction: (key: ScriptActionKey) => void;
+}
+
+function formatLeft(ms: number) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, '0')}`;
 }
 
 function StepStatus({ room }: { room: RoomState }) {
@@ -57,11 +66,15 @@ function StepStatus({ room }: { room: RoomState }) {
 
 export function HostScript({ room, onAction }: HostScriptProps) {
   const script = getHostScript(room);
+  const voiceQueue = getNarratorQueue(room);
+  const narratorLeft = useNarratorLeft(room.narratorEndsAt);
+  const narratorBusy = narratorLeft > 250;
+  const sfxVolume = useSettings((s) => s.sfxVolume);
   const step = room.step;
   const gated = Boolean(script.waitLabel);
   const stepReady = step ? step.ready : true;
   const canStart = script.action?.key !== 'startGame' || room.canStart;
-  const actionEnabled = (!gated || stepReady) && canStart;
+  const actionEnabled = (!gated || stepReady) && canStart && !narratorBusy;
 
   return (
     <section className="panel relative overflow-hidden border-brass-500/25">
@@ -75,7 +88,29 @@ export function HostScript({ room, onAction }: HostScriptProps) {
 
       <header className="relative flex items-center justify-between gap-3 px-5 pt-4 pb-3">
         <span className="eyebrow text-brass-300/90">{script.eyebrow}</span>
-        <Badge tone="brass">Сценарий ведущего</Badge>
+        <div className="flex items-center gap-2">
+          {script.voiceId && (
+            <button
+              type="button"
+              onClick={() => {
+                const remaining = narratorLeftMs(room.narratorEndsAt);
+                const total = getNarratorDurationMs(voiceQueue);
+                const offset = remaining > 250 ? Math.max(0, total - remaining) : 0;
+                playNarratorQueue(voiceQueue, sfxVolume, offset);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brass-500/30
+                bg-brass-500/10 px-2.5 py-[3px] text-[11px] font-medium tracking-[0.04em] text-brass-300
+                transition-colors hover:bg-brass-500/20"
+              title="Повторить озвучку. Пока файла нет — тишина, это нормально."
+            >
+              <IconPlay size={11} />
+              {voiceQueue.length <= 1
+                ? `${script.voiceId}.mp3`
+                : `${voiceQueue[0]}.mp3 +${voiceQueue.length - 1}`}
+            </button>
+          )}
+          <Badge tone="brass">Сценарий ведущего</Badge>
+        </div>
       </header>
       <div className="rule" />
 
@@ -95,12 +130,11 @@ export function HostScript({ room, onAction }: HostScriptProps) {
 
             <div className="mt-5 border-l-2 border-blood-600/45 pl-4">
               <ul className="space-y-3">
-                {script.lines.map((line, i) => (
+                {script.lines.map((line) => (
                   <motion.li
                     key={line}
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.06 * i, duration: 0.3 }}
                     className="font-display text-[18px] leading-[1.45] text-bone-100"
                   >
                     {line}
@@ -108,6 +142,16 @@ export function HostScript({ room, onAction }: HostScriptProps) {
                 ))}
               </ul>
             </div>
+
+            {script.liveLines && script.liveLines.length > 0 && (
+              <ul className="mt-4 space-y-1.5 rounded-[8px] border border-bone-50/10 bg-ink-1000/40 px-3.5 py-3">
+                {script.liveLines.map((line) => (
+                  <li key={line} className="text-[13.5px] leading-relaxed text-brass-200">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {script.note && (
               <p className="mt-4 text-[12.5px] leading-relaxed text-bone-700">{script.note}</p>
@@ -129,11 +173,15 @@ export function HostScript({ room, onAction }: HostScriptProps) {
               <Button
                 onClick={() => onAction(script.action!.key)}
                 variant={actionEnabled ? script.action.tone : 'secondary'}
-                disabled={!canStart}
+                disabled={!canStart || narratorBusy}
                 className="min-w-[210px] flex-1"
                 iconRight={<IconChevronRight size={16} />}
                 title={
-                  actionEnabled ? undefined : script.waitLabel || 'Дождитесь готовности игроков'
+                  narratorBusy
+                    ? 'Дождитесь, пока диктор закончит'
+                    : actionEnabled
+                      ? undefined
+                      : script.waitLabel || 'Дождитесь готовности игроков'
                 }
               >
                 {script.action.label}
@@ -150,7 +198,13 @@ export function HostScript({ room, onAction }: HostScriptProps) {
             )}
           </div>
 
-          {!actionEnabled && script.waitLabel && (
+          {narratorBusy && (
+            <p className="text-[12.5px] text-brass-300/90">
+              Диктор говорит — {formatLeft(narratorLeft)}. Сцену сменим, когда запись закончится.
+            </p>
+          )}
+
+          {!actionEnabled && !narratorBusy && script.waitLabel && (
             <p className="text-[12.5px] text-brass-300/90">
               {script.waitLabel}. Если игрок не отвечает, можно перейти дальше принудительно.
             </p>

@@ -10,6 +10,7 @@ import {
   MIN_PLAYERS,
   MAX_PLAYERS,
 } from './constants.js';
+import { armNarrator } from './narrator.js';
 
 const rooms = new Map();
 const CHAT_LIMIT = 150;
@@ -129,8 +130,10 @@ export function createRoom(nickname, socketId) {
     timer: null,
     speaking: null,
     gameNumber: 0,
+    narratorEndsAt: 0,
   };
   assignSlots(room.players);
+  armNarrator(room);
   rooms.set(code, room);
   return { room, player };
 }
@@ -313,6 +316,7 @@ export function startGame(room) {
   const mafiaCount = gamePlayers.filter((p) => isMafiaTeam(p.role)).length;
   pushLog(room, `Партия началась: ${gamePlayers.length} игроков, ${mafiaCount} в мафии`, 'brass');
   systemChat(room, 'Партия началась. Изучите свою роль.');
+  armNarrator(room);
   return { success: true };
 }
 
@@ -348,6 +352,7 @@ export function restartGame(room) {
   // Отключившихся в прошлой партии убираем из лобби
   room.players = room.players.filter((p) => p.connected || p.isHost);
   assignSlots(room.players);
+  armNarrator(room);
 }
 
 export function markRoleSeen(room, playerId) {
@@ -403,6 +408,7 @@ export function startNight(room) {
   }
   room.nightSubPhase = step;
   pushLog(room, `Ночь ${room.dayNumber}. Город засыпает`, 'night');
+  armNarrator(room);
 }
 
 export function getStepActors(room) {
@@ -518,6 +524,7 @@ export function advanceNightPhase(room) {
 
   room.nightSubPhase = NIGHT_ORDER[Math.min(idx, NIGHT_ORDER.length - 1)];
   room.actedThisStep = {};
+  armNarrator(room);
 }
 
 export function isStepComplete(room) {
@@ -644,6 +651,7 @@ export function resolveNight(room) {
   if (room.settings.discussionTime > 0) {
     startTimer(room, room.settings.discussionTime, 'Обсуждение');
   }
+  armNarrator(room);
   return { killed, winner: null };
 }
 
@@ -700,6 +708,7 @@ export function startVoting(room) {
   stopTimer(room);
   pushLog(room, 'Началось голосование', 'blood');
   systemChat(room, 'Голосование началось.');
+  armNarrator(room);
 }
 
 export function submitVote(room, voterId, targetId) {
@@ -770,6 +779,7 @@ export function resolveVoting(room) {
       .join(', ');
     pushLog(room, `Ничья: ${names}. Переголосовка`, 'brass');
     systemChat(room, `Ничья между: ${names}. Переголосовка.`);
+    armNarrator(room);
     return { exiled: null, tie: true, revote: true, winner: null };
   }
 
@@ -828,6 +838,7 @@ function finishGame(room, winner) {
   room.speaking = null;
   pushLog(room, winner === 'city' ? 'Победа города' : 'Победа мафии', 'brass');
   systemChat(room, winner === 'city' ? 'Город победил.' : 'Мафия победила.');
+  armNarrator(room);
 }
 
 /* ── Чат ─────────────────────────────────────────────────────── */
@@ -953,6 +964,7 @@ export function serializeRoom(room, viewerId = null, isOverlay = false) {
     revoteRound: room.revoteRound,
     gameNumber: room.gameNumber,
     stepReady: isStepComplete(room),
+    narratorEndsAt: room.narratorEndsAt || 0,
   };
 
   // Живой подсчёт голосов виден всем — это часть шоу

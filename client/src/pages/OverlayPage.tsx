@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOverlaySocket } from '../hooks/useSocket';
 import { useCameraViewer } from '../hooks/useCameraViewer';
+import { useNarrator } from '../hooks/useNarrator';
 import { avatarUrl } from '../utils/avatar';
 import type { Player, Role, RoomState } from '../types';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
@@ -210,6 +211,7 @@ export function OverlayPage() {
   const { code } = useParams<{ code: string }>();
   const { room, socket } = useOverlaySocket(code || '');
   const nightKill = useNightKillCutscene(room);
+  useNarrator(room);
 
   const players = (room?.players.filter((p) => !p.isHost || room.settings.showHostInOverlay) || [])
     .slice()

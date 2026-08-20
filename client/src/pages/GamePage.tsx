@@ -34,6 +34,7 @@ import {
 import { usePlayerStore } from '../store/settings';
 import { useSocket } from '../hooks/useSocket';
 import { useCameraPublisher } from '../hooks/useCameraPublisher';
+import { useNarrator } from '../hooks/useNarrator';
 import { stopCamera } from '../webrtc/session';
 import { useSound } from '../hooks/useSound';
 import type { Player, Role, RoomState } from '../types';
@@ -208,6 +209,7 @@ export function GamePage() {
   const { room, emit, connected, socket } = useSocket();
   const sound = useSound();
   useCameraPublisher(socket);
+  useNarrator(room);
 
   useEffect(() => () => stopCamera(), []);
 
@@ -315,9 +317,14 @@ export function GamePage() {
       resolveVoting: 'hostResolveVoting',
       restart: 'restartGame',
     };
+    const result = await emit<{ success: boolean; error?: string }>(events[key]);
+    if (result && result.success === false) {
+      sound.error();
+      showNotice(result.error || 'Сейчас нельзя');
+      return;
+    }
     if (key === 'resolveNight' || key === 'resolveVoting') sound.death();
     else sound.confirm();
-    emit(events[key]);
   };
 
   const submitNight = async (targetId: string | null) => {

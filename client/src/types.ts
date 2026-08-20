@@ -109,6 +109,8 @@ export interface RoomState {
   revoteRound: number;
   gameNumber: number;
   stepReady: boolean;
+  /** Серверное время, когда должна закончиться текущая озвучка */
+  narratorEndsAt?: number;
 
   voteTally?: Record<string, number>;
   voteAbstained?: number;
